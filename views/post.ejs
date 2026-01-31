@@ -1,0 +1,77 @@
+<%- include('partials_header', { title: post.title, description: post.excerpt, image: post.image_url }) %>
+<section class="hero small">
+  <div class="container">
+    <p class="eyebrow">MTM LAB</p>
+    <h1><%= post.title %></h1>
+    <div class="meta">
+      <span>MTM Solution</span>
+      <span><%= post.created_at.split('T')[0] %></span>
+      <span><%= post.tags %></span>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container content">
+    <div class="post-summary">
+      <h3>Resumo rápido</h3>
+      <p><%= post.excerpt %></p>
+      <div class="meta">
+        <span><%= post.category %></span>
+      </div>
+    </div>
+    <% if (post.video_url) { %>
+      <div class="embed <%= post.video_orientation === 'vertical' ? 'embed-vertical' : '' %>">
+        <iframe src="<%= post.video_url %>" title="Vídeo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    <% } %>
+    <%- post.content %>
+    <div class="cta inline">
+      <div>
+        <h3>Quer levar essa tecnologia para seu espaço?</h3>
+        <p>Podemos conversar diretamente sobre esta ideia.</p>
+      </div>
+      <a href="https://wa.me/<%= whatsappPhone || '' %>?text=<%= encodeURIComponent('Oi! Quero conversar sobre: ' + post.title) %>" class="btn primary">Falar no WhatsApp sobre este tema</a>
+    </div>
+    <div class="comments" id="comentarios">
+      <h3>Comentários</h3>
+      <p class="muted">Seu comentário aparece após aprovação.</p>
+      <form class="card form" action="/blog/<%= post.slug %>/comments" method="post">
+        <label>Nome
+          <input name="name" required />
+        </label>
+        <label>E-mail
+          <input name="email" type="email" required />
+        </label>
+        <label style="display:none">Website
+          <input name="website" />
+        </label>
+        <label>Comentário
+          <textarea name="message" rows="4" required></textarea>
+        </label>
+        <button class="btn primary" type="submit">Enviar comentário</button>
+      </form>
+      <div class="comment-list">
+        <% (comments || []).filter(c => !c.parent_id).forEach(comment => { %>
+          <div class="comment">
+            <div class="comment-header">
+              <strong><%= comment.name %></strong>
+              <span><%= comment.created_at.split('T')[0] %></span>
+            </div>
+            <p><%= comment.message %></p>
+            <% (comments || []).filter(r => String(r.parent_id) === String(comment.id)).forEach(reply => { %>
+              <div class="comment reply">
+                <div class="comment-header">
+                  <strong><%= reply.name %></strong>
+                  <span><%= reply.created_at.split('T')[0] %></span>
+                </div>
+                <p><%= reply.message %></p>
+              </div>
+            <% }) %>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

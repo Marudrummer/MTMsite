@@ -1,0 +1,19 @@
+<%- include('partials_header', { title: 'Admin' }) %>
+<section class="section">
+  <div class="container small">
+    <div class="card">
+      <h1>Admin LAB MTM</h1>
+      <p class="muted">Área restrita para publicação de artigos.</p>
+      <form action="/admin/login" method="post">
+        <label>Senha
+          <input type="password" name="password" required />
+        </label>
+        <% if (error) { %>
+          <p class="error"><%= error %></p>
+        <% } %>
+        <button class="btn primary" type="submit">Entrar</button>
+      </form>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <% const pageTitle = typeof title !== 'undefined' ? title + ' | MTM Solution' : 'MTM Solution'; %>
+  <% const metaDescription = typeof description !== 'undefined' ? description : 'MTM Solution - tecnologia para experiências interativas, IA e sistemas sob medida.'; %>
+  <% const metaImage = typeof image !== 'undefined' ? image : '/img/logo-mtm.png'; %>
+  <title><%= pageTitle %></title>
+  <meta name="description" content="<%= metaDescription %>" />
+  <meta property="og:title" content="<%= pageTitle %>" />
+  <meta property="og:description" content="<%= metaDescription %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="<%= metaImage %>" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="<%= pageTitle %>" />
+  <meta name="twitter:description" content="<%= metaDescription %>" />
+  <meta name="twitter:image" content="<%= metaImage %>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <a class="logo" href="/"><img src="/img/logo-mtm.png" alt="MTM Solution" /></a>
+      <nav class="nav" id="siteNav">
+        <a href="/">Home</a>
+        <a href="/sobre">Sobre</a>
+        <a href="/servicos">Serviços</a>
+        <a href="/nao-sabe">Não sabe o que fazer?</a>
+        <a href="/blog">MTM LAB</a>
+        <a href="/admin">Admin<% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %><span class="badge"><%= pendingCount %></span><% } %></a>
+        <a href="/contato" class="btn">Falar com a MTM</a>
+      </nav>
+      <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" onclick="document.body.classList.toggle('nav-open');document.getElementById('siteNav').classList.toggle('open');this.setAttribute('aria-expanded', this.getAttribute('aria-expanded')==='true'?'false':'true');">☰</button>
+    </div>
+  </header>
+  <main>

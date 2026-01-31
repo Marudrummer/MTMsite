@@ -1,0 +1,189 @@
+<%- include('partials_header', { title: 'Admin' }) %>
+<section class="section">
+  <div class="container">
+    <% const pendingList = typeof pendingComments !== 'undefined' ? pendingComments : []; %>
+    <% const approvedList = typeof approvedComments !== 'undefined' ? approvedComments : []; %>
+    <div class="admin-header">
+      <h1>Publicar novo artigo</h1>
+      <form action="/admin/logout" method="post">
+        <button class="btn ghost" type="submit">Sair</button>
+      </form>
+    </div>
+    <div class="grid-2 admin-grid">
+      <form class="card form" action="/admin/posts" method="post" enctype="multipart/form-data" data-admin-form>
+        <label>Título
+          <input name="title" required />
+        </label>
+        <input name="slug" required type="hidden" />
+        <label>Resumo
+          <input name="excerpt" required />
+        </label>
+        <label>Conteúdo
+          <textarea name="content" rows="6" required></textarea>
+        </label>
+        <label>Tags</label>
+        <div class="tag-picker" data-tag-picker data-multi="true">
+          <button type="button" class="chip" data-tag="IA" aria-pressed="false">IA</button>
+          <button type="button" class="chip" data-tag="visão computacional" aria-pressed="false">visão computacional</button>
+          <button type="button" class="chip" data-tag="museus" aria-pressed="false">museus</button>
+          <button type="button" class="chip" data-tag="imersão" aria-pressed="false">imersão</button>
+          <button type="button" class="chip" data-tag="interatividade" aria-pressed="false">interatividade</button>
+          <button type="button" class="chip" data-tag="sensores" aria-pressed="false">sensores</button>
+          <button type="button" class="chip" data-tag="projeção" aria-pressed="false">projeção</button>
+          <button type="button" class="chip" data-tag="embarcados" aria-pressed="false">embarcados</button>
+          <button type="button" class="chip" data-tag="conteúdo" aria-pressed="false">conteúdo</button>
+        </div>
+        <input name="tags" type="hidden" value="" required />
+        <label>Categoria
+          <input name="category" required />
+        </label>
+        <input name="read_time" value="" type="hidden" />
+        <label>Vídeo (URL embed)
+          <input name="video_url" placeholder="https://www.youtube.com/embed/..." />
+        </label>
+        <label>Orientação do vídeo
+          <select name="video_orientation">
+            <option value="">Automática</option>
+            <option value="horizontal">Horizontal (16:9)</option>
+            <option value="vertical">Vertical (9:16)</option>
+          </select>
+        </label>
+        <label>Imagem de capa
+          <input name="image" type="file" accept="image/*" />
+        </label>
+        <button class="btn primary" type="submit">Publicar</button>
+      </form>
+
+      <div class="card preview" id="postPreview">
+        <p class="eyebrow">Prévia</p>
+        <h3 data-preview="title">Título do artigo</h3>
+        <p data-preview="excerpt">Resumo do artigo aparece aqui para você conferir a leitura.</p>
+        <div class="meta">
+          <span>Blog MTM</span>
+          <span data-preview="read_time">5 min</span>
+          <span data-preview="category">Categoria</span>
+        </div>
+        <div class="preview-body" data-preview="content"></div>
+        <div class="preview-media" data-preview="video"></div>
+      </div>
+    </div>
+
+    <h2 class="mt">Comentários pendentes</h2>
+    <div class="comment-search">
+      <input id="commentSearch" type="text" placeholder="Buscar comentário..." />
+    </div>
+    <% if (pendingList.length) { %>
+      <div class="cards" id="pendingComments">
+        <% pendingList.forEach(comment => { %>
+          <div class="card comment-card" data-comment>
+            <div class="comment-header">
+              <strong><%= comment.name %></strong>
+              <span><%= comment.created_at.split('T')[0] %></span>
+            </div>
+            <p><%= comment.message %></p>
+            <div class="admin-actions">
+              <form action="/admin/comments/<%= comment.id %>/approve" method="post">
+                <button class="btn primary" type="submit">Aprovar</button>
+              </form>
+              <form action="/admin/comments/<%= comment.id %>/delete" method="post">
+                <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
+              </form>
+            </div>
+            <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
+              <label>Editar comentário
+                <textarea name="message" rows="3" required><%= comment.message %></textarea>
+              </label>
+              <button class="btn ghost" type="submit">Salvar edição</button>
+            </form>
+            <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
+              <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
+              <label>Responder
+                <textarea name="message" rows="3" required></textarea>
+              </label>
+              <button class="btn ghost" type="submit">Responder</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="muted">Nenhum comentário pendente.</p>
+    <% } %>
+
+    <h2 class="mt">Comentários aprovados</h2>
+    <% if (approvedList.length) { %>
+      <div class="cards" id="approvedComments">
+        <% approvedList.forEach(comment => { %>
+          <div class="card comment-card" data-comment>
+            <div class="comment-header">
+              <strong><%= comment.name %></strong>
+              <span><%= comment.created_at.split('T')[0] %></span>
+            </div>
+            <p><%= comment.message %></p>
+            <div class="admin-actions">
+              <form action="/admin/comments/<%= comment.id %>/delete" method="post">
+                <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
+              </form>
+            </div>
+            <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
+              <label>Editar comentário
+                <textarea name="message" rows="3" required><%= comment.message %></textarea>
+              </label>
+              <button class="btn ghost" type="submit">Salvar edição</button>
+            </form>
+            <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
+              <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
+              <label>Responder
+                <textarea name="message" rows="3" required></textarea>
+              </label>
+              <button class="btn ghost" type="submit">Responder</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="muted">Nenhum comentário aprovado.</p>
+    <% } %>
+
+    <h2 class="mt">Artigos publicados</h2>
+    <div class="cards">
+      <% posts.forEach(post => { %>
+        <div class="card">
+          <% if (post.image_url) { %>
+            <div class="card-media" style="background-image: url('<%= post.image_url %>')"></div>
+          <% } %>
+          <h3><%= post.title %></h3>
+          <p><%= post.excerpt %></p>
+          <span class="tag"><%= post.category %></span>
+          <div class="admin-actions">
+            <a class="btn ghost" href="/admin/posts/<%= post.id %>/edit">Editar</a>
+            <form action="/admin/posts/<%= post.id %>/delete" method="post">
+              <button class="btn danger" type="submit" data-confirm="Excluir este artigo?">Excluir</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>
+<script>
+  (function () {
+    const form = document.querySelector('form[data-admin-form]');
+    if (!form) return;
+    const picker = form.querySelector('[data-tag-picker]');
+    const input = form.querySelector('input[name="tags"]');
+    if (!picker || !input) return;
+    const sync = () => {
+      const selected = Array.from(picker.querySelectorAll('.chip.active')).map(c => c.dataset.tag);
+      input.value = selected.join(', ');
+    };
+    picker.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      e.preventDefault();
+      chip.classList.toggle('active');
+      chip.setAttribute('aria-pressed', chip.classList.contains('active') ? 'true' : 'false');
+      sync();
+    });
+  })();
+</script>

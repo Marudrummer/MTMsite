@@ -1,0 +1,40 @@
+<%- include('partials_header', { title: 'Contato', description: 'Fale com a MTM Solution e tire seu projeto do papel.' }) %>
+<section class="hero small">
+  <div class="container">
+    <h1>Contato</h1>
+    <p class="lead">Vamos criar algo incrível juntos.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2">
+    <form class="card form" action="/contato" method="post">
+      <label>Nome
+        <input name="nome" required />
+      </label>
+      <label>E-mail
+        <input name="email" type="email" required />
+      </label>
+      <label>Empresa
+        <input name="empresa" />
+      </label>
+      <label>Assunto
+        <input name="assunto" value="<%= (preset && preset.assunto) || '' %>" />
+      </label>
+      <label>Mensagem
+        <textarea name="mensagem" rows="5" required><%= (preset && preset.mensagem) || '' %></textarea>
+      </label>
+      <button class="btn primary" type="submit">Enviar</button>
+      <% if (typeof sent !== 'undefined') { %>
+        <p class="success">Mensagem enviada! Retornaremos em breve.</p>
+      <% } %>
+    </form>
+    <div class="card highlight">
+      <h3>Fale com a MTM</h3>
+      <p>Estamos prontos para entender seu desafio e propor a melhor solução.</p>
+      <a class="btn ghost" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">WhatsApp</a>
+      <p class="muted">Envie um e-mail para contato@mtmsolution.com.br</p>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

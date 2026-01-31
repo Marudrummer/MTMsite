@@ -1,0 +1,98 @@
+<%- include('partials_header', { title: 'Editar artigo' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <h1>Editar artigo</h1>
+      <a class="btn ghost" href="/admin">Voltar</a>
+    </div>
+    <div class="grid-2 admin-grid">
+      <form class="card form" action="/admin/posts/<%= post.id %>" method="post" enctype="multipart/form-data" data-admin-form>
+        <label>Título
+          <input name="title" value="<%= post.title %>" required />
+        </label>
+        <input name="slug" value="<%= post.slug %>" required type="hidden" />
+        <label>Resumo
+          <input name="excerpt" value="<%= post.excerpt %>" required />
+        </label>
+        <label>Conteúdo
+          <textarea name="content" rows="6" required><%= post.content %></textarea>
+        </label>
+        <% const selectedTags = (post.tags || '').split(',').map(t => t.trim().toLowerCase()); %>
+        <label>Tags</label>
+        <div class="tag-picker" data-tag-picker data-multi="true">
+          <button type="button" class="chip <%= selectedTags.includes('ia') ? 'active' : '' %>" data-tag="IA" aria-pressed="<%= selectedTags.includes('ia') ? 'true' : 'false' %>">IA</button>
+          <button type="button" class="chip <%= selectedTags.includes('visão computacional') ? 'active' : '' %>" data-tag="visão computacional" aria-pressed="<%= selectedTags.includes('visão computacional') ? 'true' : 'false' %>">visão computacional</button>
+          <button type="button" class="chip <%= selectedTags.includes('museus') ? 'active' : '' %>" data-tag="museus" aria-pressed="<%= selectedTags.includes('museus') ? 'true' : 'false' %>">museus</button>
+          <button type="button" class="chip <%= selectedTags.includes('imersão') ? 'active' : '' %>" data-tag="imersão" aria-pressed="<%= selectedTags.includes('imersão') ? 'true' : 'false' %>">imersão</button>
+          <button type="button" class="chip <%= selectedTags.includes('interatividade') ? 'active' : '' %>" data-tag="interatividade" aria-pressed="<%= selectedTags.includes('interatividade') ? 'true' : 'false' %>">interatividade</button>
+          <button type="button" class="chip <%= selectedTags.includes('sensores') ? 'active' : '' %>" data-tag="sensores" aria-pressed="<%= selectedTags.includes('sensores') ? 'true' : 'false' %>">sensores</button>
+          <button type="button" class="chip <%= selectedTags.includes('projeção') ? 'active' : '' %>" data-tag="projeção" aria-pressed="<%= selectedTags.includes('projeção') ? 'true' : 'false' %>">projeção</button>
+          <button type="button" class="chip <%= selectedTags.includes('embarcados') ? 'active' : '' %>" data-tag="embarcados" aria-pressed="<%= selectedTags.includes('embarcados') ? 'true' : 'false' %>">embarcados</button>
+          <button type="button" class="chip <%= selectedTags.includes('conteúdo') ? 'active' : '' %>" data-tag="conteúdo" aria-pressed="<%= selectedTags.includes('conteúdo') ? 'true' : 'false' %>">conteúdo</button>
+        </div>
+        <input name="tags" type="hidden" value="<%= post.tags || '' %>" required />
+        <label>Categoria
+          <input name="category" value="<%= post.category %>" required />
+        </label>
+        <input name="read_time" value="<%= post.read_time || '' %>" type="hidden" />
+        <label>Vídeo (URL embed)
+          <input name="video_url" value="<%= post.video_url || '' %>" placeholder="https://www.youtube.com/embed/..." />
+        </label>
+        <label>Orientação do vídeo
+          <select name="video_orientation">
+            <option value="" <%= !post.video_orientation ? 'selected' : '' %>>Automática</option>
+            <option value="horizontal" <%= post.video_orientation === 'horizontal' ? 'selected' : '' %>>Horizontal (16:9)</option>
+            <option value="vertical" <%= post.video_orientation === 'vertical' ? 'selected' : '' %>>Vertical (9:16)</option>
+          </select>
+        </label>
+        <label>Imagem de capa (opcional)
+          <input name="image" type="file" accept="image/*" />
+        </label>
+        <% if (post.image_url) { %>
+          <div class="card-media" style="background-image: url('<%= post.image_url %>')"></div>
+          <label>
+            <input type="checkbox" name="remove_image" value="1" />
+            Remover imagem atual
+          </label>
+        <% } %>
+        <button class="btn primary" type="submit">Salvar alterações</button>
+      </form>
+
+      <div class="card preview" id="postPreview">
+        <p class="eyebrow">Prévia</p>
+        <h3 data-preview="title"><%= post.title %></h3>
+        <p data-preview="excerpt"><%= post.excerpt %></p>
+        <div class="meta">
+          <span>Blog MTM</span>
+          <span data-preview="read_time"><%= post.read_time %></span>
+          <span data-preview="category"><%= post.category %></span>
+        </div>
+        <div class="preview-body" data-preview="content"><%- post.content %></div>
+        <div class="preview-media" data-preview="video"></div>
+      </div>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>
+<script>
+  (function () {
+    const form = document.querySelector('form[data-admin-form]');
+    if (!form) return;
+    const picker = form.querySelector('[data-tag-picker]');
+    const input = form.querySelector('input[name="tags"]');
+    if (!picker || !input) return;
+    const sync = () => {
+      const selected = Array.from(picker.querySelectorAll('.chip.active')).map(c => c.dataset.tag);
+      input.value = selected.join(', ');
+    };
+    picker.addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      e.preventDefault();
+      chip.classList.toggle('active');
+      chip.setAttribute('aria-pressed', chip.classList.contains('active') ? 'true' : 'false');
+      sync();
+    });
+    sync();
+  })();
+</script>

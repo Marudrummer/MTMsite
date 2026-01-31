@@ -1,0 +1,36 @@
+{
+  "stats": [
+    {
+      "value": "12+",
+      "label": "Projetos entregues em espaços culturais e eventos."
+    },
+    {
+      "value": "24/7",
+      "label": "Operação contínua com monitoramento remoto."
+    },
+    {
+      "value": "3x",
+      "label": "Mais interação do público em ativações imersivas."
+    }
+  ],
+  "cases": [
+    {
+      "title": "Galeria Sensorial",
+      "description": "Instalação imersiva com sensores de movimento e projeção mapeada.",
+      "meta": "Engajamento +32% • 8 min por visita",
+      "icon": "immersive"
+    },
+    {
+      "title": "Totem Inteligente",
+      "description": "Atendimento automatizado com IA para eventos e espaços públicos.",
+      "meta": "Fila -41% • Atualização remota",
+      "icon": "kiosk"
+    },
+    {
+      "title": "Jogo Educacional",
+      "description": "Experiência lúdica com visão computacional para museus.",
+      "meta": "Retenção +27% • Feedback instantâneo",
+      "icon": "game"
+    }
+  ]
+}

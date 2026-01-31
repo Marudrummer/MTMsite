@@ -1,0 +1,182 @@
+<%- include('partials_header', { title: 'Home', description: 'Tecnologia aplicada para experiências interativas, IA e sistemas sob medida para museus, eventos e empresas.' }) %>
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <p class="eyebrow">MTM Solution</p>
+      <h1>Tecnologia que cria experiências reais</h1>
+      <p class="lead">IA, visão computacional e sistemas interativos para museus, eventos e empresas.</p>
+      <div class="hero-actions">
+        <a href="/servicos" class="btn primary">Ver Serviços</a>
+        <a href="/contato" class="btn ghost">Falar com a MTM</a>
+      </div>
+      <div class="pillars">
+        <div class="pillar">Interatividade</div>
+        <div class="pillar">Inteligência Artificial</div>
+        <div class="pillar">Engenharia</div>
+        <div class="pillar">Experiência do Usuário</div>
+      </div>
+    </div>
+    <div class="hero-card">
+      <div class="glow"></div>
+      <h3>Blog MTM</h3>
+      <p>Pesquisa aplicada e prototipagem rápida para transformar ideias em instalações reais.</p>
+      <a href="/blog" class="link">Acessar o Blog</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Serviços-chave</h2>
+      <p>O essencial para experiências sólidas e memoráveis.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 12a8 8 0 1 0 16 0" />
+            <path d="M12 4v8l6 3" />
+          </svg>
+        </div>
+        <h3>Interatividade</h3>
+        <p>Sensores e respostas em tempo real para engajar visitantes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v6m0 6v6M5 12h14" />
+            <path d="M8 8l8 8M16 8l-8 8" />
+          </svg>
+        </div>
+        <h3>IA Aplicada</h3>
+        <p>Visão computacional e automação inteligente.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 19h16" />
+            <path d="M7 16l3-3 3 3 4-5" />
+          </svg>
+        </div>
+        <h3>Engenharia 24/7</h3>
+        <p>Operação contínua com monitoramento e manutenção.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 12h16" />
+            <path d="M7 7h10v10H7z" />
+          </svg>
+        </div>
+        <h3>Projeção & Mapping</h3>
+        <p>Projeções mapeadas para narrativa imersiva.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h4l5-4v8l-5-4H5z" />
+            <path d="M16 9a4 4 0 0 1 0 6" />
+          </svg>
+        </div>
+        <h3>Áudio Programado</h3>
+        <p>Disparos por zonas e horários com controle de conteúdo.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 18h16" />
+            <path d="M6 16V9M12 16V6M18 16v-4" />
+          </svg>
+        </div>
+        <h3>Analytics de Fluxo</h3>
+        <p>Dados de circulação para decisões curatoriais.</p>
+      </div>
+    </div>
+    <div class="section-actions">
+      <a href="/servicos" class="btn ghost">Ver todos os serviços</a>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="container">
+    <div class="section-header">
+      <h2>Não sabe o que fazer ainda?</h2>
+      <p>Transforme uma ideia solta em um briefing claro com ajuda da MTM.</p>
+    </div>
+    <div class="section-actions">
+      <a href="/nao-sabe" class="btn primary">Falar no WhatsApp agora</a>
+      <a href="/nao-sabe" class="btn ghost">Prefiro enviar minha ideia</a>
+    </div>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Cases em destaque</h2>
+      <p>Projetos que combinam criatividade, engenharia e resultados reais.</p>
+    </div>
+    <div class="cards">
+      <% const iconMap = {
+        immersive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 16 0" /><path d="M12 4v8l6 3" /></svg>',
+        kiosk: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v6H7z" /><path d="M5 12h14v6H5z" /><path d="M9 15h6" /></svg>',
+        game: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9h12a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-1l-2-2h-6l-2 2H6a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3z" /><path d="M9 12h2M8 13h2M15 12h2" /></svg>'
+      }; %>
+      <% (cases || []).forEach((item, idx) => { %>
+        <div class="card <%= idx === 0 ? 'highlight' : '' %>">
+          <div class="card-icon">
+            <%- iconMap[item.icon] || iconMap.immersive %>
+          </div>
+          <h3><%= item.title %></h3>
+          <p><%= item.description %></p>
+          <div class="meta">
+            <span><%= item.meta %></span>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+    <div class="section-actions">
+      <a href="/blog" class="btn ghost">Ver MTM LAB</a>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="container">
+    <div class="section-header">
+      <h2>MTM LAB</h2>
+      <p>Série autoral sobre tecnologia aplicada e experiências interativas.</p>
+    </div>
+    <div class="cards">
+        <% posts.forEach(post => { %>
+          <a class="card link-card work-card" href="/blog/<%= post.slug %>">
+            <div class="card-media work-media" style="background-image: url('<%= post.card_image %>')"></div>
+            <h3><%= post.title %></h3>
+            <p><%= post.excerpt %></p>
+            <span class="tag"><%= post.category %></span>
+            <% if (post.tags) { %>
+              <div class="tag-row">
+                <% post.tags.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => { %>
+                  <span class="tag small"><%= tag %></span>
+                <% }) %>
+              </div>
+            <% } %>
+          </a>
+        <% }) %>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="container cta-grid">
+    <div>
+      <h2>Vamos criar algo incrível juntos.</h2>
+      <p>Conte com a MTM Solution para entregar experiências memoráveis e tecnologia confiável.</p>
+    </div>
+    <a href="/contato" class="btn primary">Falar com a MTM</a>
+  </div>
+</section>
+<%- include('partials_footer') %>

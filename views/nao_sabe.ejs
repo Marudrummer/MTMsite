@@ -1,0 +1,59 @@
+<%- include('partials_header', { title: 'Não sabe o que fazer ainda?', description: 'Transforme sua ideia em um briefing claro com ajuda da MTM.' }) %>
+<section class="hero small">
+  <div class="container">
+    <h1>Não sabe o que fazer ainda? A gente te ajuda a transformar a ideia em projeto.</h1>
+    <p class="lead">Converse no WhatsApp e, em poucos minutos, organizamos sua necessidade em um briefing claro. Se preferir, você também pode enviar sua ideia por formulário.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2">
+    <div class="card highlight">
+      <h3>Falar no WhatsApp agora</h3>
+      <p>Fluxo guiado por IA para organizar sua ideia. Você pode falar com uma pessoa real a qualquer momento digitando HUMANO.</p>
+      <a class="btn primary" href="https://wa.me/<%= whatsappPhone %>?text=Oi!%20Quero%20ajuda%20para%20organizar%20uma%20ideia%20em%20um%20briefing.">Falar no WhatsApp agora</a>
+      <p class="muted mt">Você pode chamar um humano a qualquer momento digitando HUMANO no WhatsApp.</p>
+    </div>
+    <div class="card form">
+      <h3>Prefiro enviar minha ideia por escrito</h3>
+      <form action="/qualificador" method="post">
+        <label>Nome
+          <input name="name" required />
+        </label>
+        <label>E-mail
+          <input name="email" type="email" required />
+        </label>
+        <label>Telefone/WhatsApp
+          <input name="phone" />
+        </label>
+        <label>Cidade
+          <input name="city" />
+        </label>
+        <label>Compra ou locação?
+          <select name="deal_type" required>
+            <option value="">Selecione</option>
+            <option value="compra">Compra</option>
+            <option value="locacao">Locação</option>
+          </select>
+        </label>
+        <label>Se for locação: quantos dias e quais datas?
+          <input name="rental_details" placeholder="Ex.: 3 dias, 12 a 14/05" />
+        </label>
+        <label>Local do evento
+          <input name="event_location" placeholder="Ex.: Shopping X, Pavilhão Y" />
+        </label>
+        <label style="display:none">Website
+          <input name="website" />
+        </label>
+        <label>Sua ideia
+          <textarea name="idea" rows="5" required></textarea>
+        </label>
+        <button class="btn primary" type="submit">Enviar ideia</button>
+        <% if (sent) { %>
+          <p class="success">Recebido! Em breve alguém do time humano entra em contato.</p>
+        <% } %>
+      </form>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>
