@@ -592,7 +592,8 @@ app.post("/admin/comments/:id/reply", (req, res) => {
 
 app.post("/contato", (req, res) => {
   const { nome, email, empresa, assunto, mensagem } = req.body;
-  if (mailer && process.env.SMTP_USER) {
+  console.log("Contato recebido:", { nome, email, empresa, assunto });
+  if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
     const subject = assunto && String(assunto).trim()
       ? `[Contato] ${assunto}`
       : "Contato pelo site";
@@ -610,8 +611,10 @@ app.post("/contato", (req, res) => {
       to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
       subject,
       text
+    }).then(() => {
+      console.log("Email contato enviado com sucesso.");
     }).catch((err) => {
-      console.error("Email contato falhou:", err.message);
+      console.error("Email contato falhou:", err && err.message ? err.message : err);
     });
   } else {
     console.warn("SMTP não configurado. Contato não enviado por email.");
