@@ -655,6 +655,33 @@ app.post("/qualificador", async (req, res) => {
     summary: "",
     status: "WAITING_CONTACT"
   };
+  if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const subject = "Briefing enviado pelo site (Não sabe o que fazer?)";
+    const text = [
+      `Nome: ${name || ""}`,
+      `Email: ${email || ""}`,
+      `Telefone: ${phone || ""}`,
+      `Cidade: ${city || ""}`,
+      `Compra/Locação: ${deal_type || ""}`,
+      `Locação (dias/datas): ${rental_details || ""}`,
+      `Local do evento: ${event_location || ""}`,
+      "",
+      "Ideia:",
+      `${idea || ""}`
+    ].join("\n");
+    mailer.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
+      subject,
+      text
+    }).then(() => {
+      console.log("Email briefing enviado com sucesso.");
+    }).catch((err) => {
+      console.error("Email briefing falhou:", err && err.message ? err.message : err);
+    });
+  } else {
+    console.warn("SMTP não configurado. Briefing não enviado por email.");
+  }
   await sendToN8n(payload);
   res.redirect("/nao-sabe?sent=1");
 });
