@@ -591,6 +591,31 @@ app.post("/admin/comments/:id/reply", (req, res) => {
 });
 
 app.post("/contato", (req, res) => {
+  const { nome, email, empresa, assunto, mensagem } = req.body;
+  if (mailer && process.env.SMTP_USER) {
+    const subject = assunto && String(assunto).trim()
+      ? `[Contato] ${assunto}`
+      : "Contato pelo site";
+    const text = [
+      `Nome: ${nome || ""}`,
+      `Email: ${email || ""}`,
+      `Empresa: ${empresa || ""}`,
+      `Assunto: ${assunto || ""}`,
+      "",
+      `Mensagem:`,
+      `${mensagem || ""}`
+    ].join("\n");
+    mailer.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
+      subject,
+      text
+    }).catch((err) => {
+      console.error("Email contato falhou:", err.message);
+    });
+  } else {
+    console.warn("SMTP não configurado. Contato não enviado por email.");
+  }
   res.render("contato", { sent: true });
 });
 
