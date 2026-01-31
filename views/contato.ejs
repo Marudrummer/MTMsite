@@ -1,4 +1,5 @@
 <%- include('partials_header', { title: 'Contato', description: 'Fale com a MTM Solution e tire seu projeto do papel.' }) %>
+<% const presetSafe = (typeof preset !== 'undefined' && preset) ? preset : { assunto: '', mensagem: '' }; %>
 <section class="hero small">
   <div class="container">
     <h1>Contato</h1>
@@ -19,10 +20,10 @@
         <input name="empresa" />
       </label>
       <label>Assunto
-        <input name="assunto" value="<%= (preset && preset.assunto) || '' %>" />
+        <input name="assunto" value="<%= presetSafe.assunto %>" />
       </label>
       <label>Mensagem
-        <textarea name="mensagem" rows="5" required><%= (preset && preset.mensagem) || '' %></textarea>
+        <textarea name="mensagem" rows="5" required><%= presetSafe.mensagem %></textarea>
       </label>
       <button class="btn primary" type="submit">Enviar</button>
       <% if (typeof sent !== 'undefined') { %>
@@ -32,7 +33,7 @@
     <div class="card highlight">
       <h3>Fale com a MTM</h3>
       <p>Estamos prontos para entender seu desafio e propor a melhor solução.</p>
-      <a class="btn ghost" href="https://wa.me/5500000000000" target="_blank" rel="noreferrer">WhatsApp</a>
+      <a class="btn ghost" href="https://wa.me/<%= whatsappPhone || '5511970663565' %>" target="_blank" rel="noreferrer">WhatsApp</a>
       <p class="muted">Envie um e-mail para contato@mtmsolution.com.br</p>
     </div>
   </div>
