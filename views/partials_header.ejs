@@ -34,7 +34,7 @@
         <a href="/admin">Admin<% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %><span class="badge"><%= pendingCount %></span><% } %></a>
         <a href="/contato" class="btn">Falar com a MTM</a>
       </nav>
-      <button class="nav-toggle" aria-label="Abrir menu" aria-expanded="false" onclick="document.body.classList.toggle('nav-open');document.getElementById('siteNav').classList.toggle('open');this.setAttribute('aria-expanded', this.getAttribute('aria-expanded')==='true'?'false':'true');">☰</button>
+      <button class="nav-toggle" type="button" aria-label="Abrir menu" aria-controls="siteNav" aria-expanded="false" onclick="const nav=document.getElementById('siteNav'); if(nav){document.body.classList.toggle('nav-open'); nav.classList.toggle('open'); this.setAttribute('aria-expanded', nav.classList.contains('open')?'true':'false');}">☰</button>
     </div>
   </header>
   <main>
