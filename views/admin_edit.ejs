@@ -6,7 +6,7 @@
       <a class="btn ghost" href="/admin">Voltar</a>
     </div>
     <div class="grid-2 admin-grid">
-      <form class="card form" action="/admin/posts/<%= post.id %>" method="post" enctype="multipart/form-data" data-admin-form>
+      <form class="card form" action="/admin/posts/<%= post.id %>" method="post" data-admin-form>
         <label>Título
           <input name="title" value="<%= post.title %>" required />
         </label>
@@ -45,14 +45,15 @@
             <option value="vertical" <%= post.video_orientation === 'vertical' ? 'selected' : '' %>>Vertical (9:16)</option>
           </select>
         </label>
-        <label>Imagem de capa (opcional)
-          <input name="image" type="file" accept="image/*" />
+        <label>Thumbnail do YouTube
+          <input name="image_url" type="hidden" value="<%= post.image_url || '' %>" />
+          <div class="thumb-picker" data-thumb-picker data-selected="<%= post.image_url || '' %>"></div>
+          <p class="muted">Cole um link do YouTube e escolha a thumbnail. Se não escolher, usamos a padrão.</p>
         </label>
         <% if (post.image_url) { %>
-          <div class="card-media" style="background-image: url('<%= post.image_url %>')"></div>
           <label>
             <input type="checkbox" name="remove_image" value="1" />
-            Remover imagem atual
+            Remover thumbnail atual
           </label>
         <% } %>
         <button class="btn primary" type="submit">Salvar alterações</button>

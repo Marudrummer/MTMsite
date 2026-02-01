@@ -16,6 +16,67 @@ if (navToggle && nav) {
   });
 }
 
+const setupThumbPicker = (form) => {
+  const input = form.querySelector('input[name="video_url"]');
+  const hidden = form.querySelector('input[name="image_url"]');
+  const container = form.querySelector('[data-thumb-picker]');
+  if (!input || !hidden || !container) return;
+
+  const extractYouTubeId = (url) => {
+    if (!url) return '';
+    const trimmed = url.trim();
+    const match = trimmed.match(/(?:youtube\.com\/embed\/|youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]+)/);
+    return match ? match[1] : '';
+  };
+
+  const buildOptions = (videoId) => {
+    if (!videoId) return [];
+    return [
+      { label: 'maxres', url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` },
+      { label: 'hq', url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` },
+      { label: 'mq', url: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` },
+      { label: 'sd', url: `https://img.youtube.com/vi/${videoId}/sddefault.jpg` }
+    ];
+  };
+
+  const render = () => {
+    const videoId = extractYouTubeId(input.value);
+    const options = buildOptions(videoId);
+    container.innerHTML = '';
+    container.dataset.video = videoId;
+
+    if (!options.length) {
+      hidden.value = hidden.value || '';
+      return;
+    }
+
+    let selected = hidden.value;
+    if (!selected) {
+      selected = options[1].url;
+      hidden.value = selected;
+    }
+
+    options.forEach(opt => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `thumb-option${selected === opt.url ? ' active' : ''}`;
+      button.dataset.url = opt.url;
+      button.innerHTML = `<img src="${opt.url}" alt="thumbnail ${opt.label}" loading="lazy" />`;
+      button.addEventListener('click', () => {
+        hidden.value = opt.url;
+        container.querySelectorAll('.thumb-option').forEach(b => b.classList.remove('active'));
+        button.classList.add('active');
+      });
+      container.appendChild(button);
+    });
+  };
+
+  input.addEventListener('input', render);
+  render();
+};
+
+document.querySelectorAll('form[data-admin-form]').forEach(setupThumbPicker);
+
 const projectGrid = document.getElementById('projectGrid');
 if (projectGrid) {
   const categoryFilters = document.querySelectorAll('[data-filter-category]');

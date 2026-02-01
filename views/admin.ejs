@@ -10,7 +10,7 @@
       </form>
     </div>
     <div class="grid-2 admin-grid">
-      <form class="card form" action="/admin/posts" method="post" enctype="multipart/form-data" data-admin-form>
+      <form class="card form" action="/admin/posts" method="post" data-admin-form>
         <label>Título
           <input name="title" required />
         </label>
@@ -48,8 +48,10 @@
             <option value="vertical">Vertical (9:16)</option>
           </select>
         </label>
-        <label>Imagem de capa
-          <input name="image" type="file" accept="image/*" />
+        <label>Thumbnail do YouTube
+          <input name="image_url" type="hidden" value="" />
+          <div class="thumb-picker" data-thumb-picker data-selected=""></div>
+          <p class="muted">Cole um link do YouTube e escolha a thumbnail. Se não escolher, usamos a padrão.</p>
         </label>
         <button class="btn primary" type="submit">Publicar</button>
       </form>
