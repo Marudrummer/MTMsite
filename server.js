@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+require("dotenv").config();
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const multer = require("multer");
@@ -13,7 +14,6 @@ try {
 }
 const SITE_PATH = path.join(__dirname, "db", "site.json");
 const UPLOADS_DIR = path.join(__dirname, "public", "uploads");
-require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -395,7 +395,7 @@ app.post("/admin/comments/:id/reply", asyncHandler(async (req, res) => {
   res.redirect("/admin");
 }));
 
-app.post("/contato", (req, res) => {
+app.post("/contato", asyncHandler(async (req, res) => {
   const { nome, email, empresa, assunto, mensagem } = req.body;
   console.log("Contato recebido:", { nome, email, empresa, assunto });
   if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -411,21 +411,22 @@ app.post("/contato", (req, res) => {
       `Mensagem:`,
       `${mensagem || ""}`
     ].join("\n");
-    mailer.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
-      subject,
-      text
-    }).then(() => {
+    try {
+      await mailer.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
+        subject,
+        text
+      });
       console.log("Email contato enviado com sucesso.");
-    }).catch((err) => {
+    } catch (err) {
       console.error("Email contato falhou:", err && err.message ? err.message : err);
-    });
+    }
   } else {
     console.warn("SMTP não configurado. Contato não enviado por email.");
   }
   res.render("contato", { sent: true });
-});
+}));
 
 async function sendToN8n(payload) {
   if (!N8N_WEBHOOK_URL) return;
@@ -474,16 +475,17 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       "Ideia:",
       `${idea || ""}`
     ].join("\n");
-    mailer.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
-      subject,
-      text
-    }).then(() => {
+    try {
+      await mailer.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
+        subject,
+        text
+      });
       console.log("Email briefing enviado com sucesso.");
-    }).catch((err) => {
+    } catch (err) {
       console.error("Email briefing falhou:", err && err.message ? err.message : err);
-    });
+    }
   } else {
     console.warn("SMTP não configurado. Briefing não enviado por email.");
   }
