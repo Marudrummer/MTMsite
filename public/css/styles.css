@@ -534,7 +534,7 @@ a { color: inherit; text-decoration: none; }
 .muted { color: var(--muted); }
 
 .nav-toggle { display: none; background: transparent; color: #fff; border: none; font-size: 24px; }
-.nav-toggle { cursor: pointer; z-index: 21; position: relative; }
+.nav-toggle { cursor: pointer; z-index: 30; position: relative; }
 .nav-toggle { cursor: pointer; }
 
 .carousel {

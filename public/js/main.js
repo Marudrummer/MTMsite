@@ -1,12 +1,15 @@
-const navToggle = document.querySelector('.nav-toggle');
-const nav = document.querySelector('.nav');
-if (navToggle && nav) {
-  navToggle.addEventListener('click', () => {
+const setupMobileNav = () => {
+  const navToggle = document.getElementById('navToggle');
+  const nav = document.getElementById('siteNav');
+  if (!navToggle || !nav) return;
+
+  const toggle = () => {
     nav.classList.toggle('open');
     document.body.classList.toggle('nav-open');
     navToggle.setAttribute('aria-expanded', nav.classList.contains('open') ? 'true' : 'false');
-  });
+  };
 
+  navToggle.addEventListener('click', toggle);
   nav.querySelectorAll('a').forEach(link => {
     link.addEventListener('click', () => {
       nav.classList.remove('open');
@@ -14,6 +17,12 @@ if (navToggle && nav) {
       navToggle.setAttribute('aria-expanded', 'false');
     });
   });
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupMobileNav);
+} else {
+  setupMobileNav();
 }
 
 const setupThumbPicker = (form) => {
