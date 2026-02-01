@@ -3,7 +3,6 @@ const fs = require("fs");
 require("dotenv").config();
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const multer = require("multer");
 const storageDb = require("./storage_db");
 let nodemailer = null;
 try {
@@ -13,7 +12,6 @@ try {
   nodemailer = null;
 }
 const SITE_PATH = path.join(__dirname, "db", "site.json");
-const UPLOADS_DIR = path.join(__dirname, "public", "uploads");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,24 +98,6 @@ if (!fs.existsSync(SITE_PATH)) {
     )
   );
 }
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
-
-const uploadStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const base = path.basename(file.originalname, ext).replace(/[^a-z0-9-_]/gi, "").toLowerCase();
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${base || "image"}-${unique}${ext}`);
-  }
-});
-const upload = multer({
-  storage: uploadStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }
-});
-
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 function loadSiteData() {
@@ -266,10 +246,10 @@ app.post("/admin/logout", (req, res) => {
   res.redirect("/admin");
 });
 
-app.post("/admin/posts", upload.single("image"), asyncHandler(async (req, res) => {
+app.post("/admin/posts", asyncHandler(async (req, res) => {
   if (!isAuthed(req)) return res.status(401).send("Não autorizado");
-  const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation } = req.body;
-  const image_url = req.file ? `/uploads/${req.file.filename}` : "";
+  const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
+  const image_url = imageUrlInput || "";
   const normalizedVideo = normalizeVideoUrl(video_url);
   const tagList = Array.isArray(tags)
     ? tags
@@ -291,9 +271,9 @@ app.post("/admin/posts", upload.single("image"), asyncHandler(async (req, res) =
   res.redirect("/admin");
 }));
 
-app.post("/admin/posts/:id", upload.single("image"), asyncHandler(async (req, res) => {
+app.post("/admin/posts/:id", asyncHandler(async (req, res) => {
   if (!isAuthed(req)) return res.status(401).send("Não autorizado");
-  const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation } = req.body;
+  const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
   const removeImage = req.body.remove_image === "1";
   const tagList = Array.isArray(tags)
     ? tags
@@ -315,7 +295,7 @@ app.post("/admin/posts/:id", upload.single("image"), asyncHandler(async (req, re
     updates.slug = await ensureUniqueSlugForUpdate(title || slug, slug, req.params.id);
   }
   if (removeImage) updates.image_url = "";
-  if (req.file) updates.image_url = `/uploads/${req.file.filename}`;
+  if (imageUrlInput && !removeImage) updates.image_url = imageUrlInput;
   await updatePost(req.params.id, updates);
   res.redirect("/admin");
 }));
