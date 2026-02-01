@@ -158,11 +158,11 @@ document.querySelectorAll('[data-admin-form]').forEach(form => {
   const normalizeVideoUrl = (url) => {
     if (!url) return '';
     const trimmed = url.trim();
-    const ytMatch = trimmed.match(/(?:youtu\\.be\\/|youtube\\.com\\/watch\\?v=)([A-Za-z0-9_-]+)/);
+    const ytMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]+)/);
     if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    const ytEmbed = trimmed.match(/youtube\\.com\\/embed\\/([A-Za-z0-9_-]+)/);
+    const ytEmbed = trimmed.match(/youtube\.com\/embed\/([A-Za-z0-9_-]+)/);
     if (ytEmbed) return trimmed;
-    const vimeoMatch = trimmed.match(/vimeo\\.com\\/(\\d+)/);
+    const vimeoMatch = trimmed.match(/vimeo\.com\/(\d+)/);
     if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
     return trimmed;
   };
