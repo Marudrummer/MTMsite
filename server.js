@@ -249,6 +249,9 @@ app.post("/admin/logout", (req, res) => {
 app.post("/admin/posts", asyncHandler(async (req, res) => {
   if (!isAuthed(req)) return res.status(401).send("Não autorizado");
   const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
+  if (!title || !excerpt || !content || !category) {
+    return res.status(400).send("Campos obrigatórios ausentes.");
+  }
   const image_url = imageUrlInput || "";
   const normalizedVideo = normalizeVideoUrl(video_url);
   const tagList = Array.isArray(tags)
@@ -275,6 +278,9 @@ app.post("/admin/posts/:id", asyncHandler(async (req, res) => {
   if (!isAuthed(req)) return res.status(401).send("Não autorizado");
   const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
   const removeImage = req.body.remove_image === "1";
+  if (!title || !excerpt || !content || !category) {
+    return res.status(400).send("Campos obrigatórios ausentes.");
+  }
   const tagList = Array.isArray(tags)
     ? tags
     : (tags ? String(tags).split(",").map(t => t.trim()).filter(Boolean) : []);
@@ -316,7 +322,7 @@ app.post("/blog/:slug/comments", asyncHandler(async (req, res) => {
     return res.redirect(`/blog/${req.params.slug}#comentarios`);
   }
   await insertComment({
-    post_slug: req.params.slug,
+    post_slug: String(req.params.slug || "").trim().toLowerCase(),
     name: String(name).trim(),
     email: String(email).trim(),
     message: String(message).trim(),
@@ -363,7 +369,7 @@ app.post("/admin/comments/:id/reply", asyncHandler(async (req, res) => {
   const { message, post_slug } = req.body;
   if (!message || !post_slug || !String(message).trim()) return res.redirect("/admin");
   await insertComment({
-    post_slug: post_slug,
+    post_slug: String(post_slug || "").trim().toLowerCase(),
     name: "MTM Solution",
     email: "",
     message: String(message).trim(),

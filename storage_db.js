@@ -88,8 +88,8 @@ async function deletePost(id) {
 
 async function getCommentsByPostSlug(slug) {
   const { rows } = await query(
-    "SELECT * FROM comments WHERE post_slug = $1 AND status = 'approved' ORDER BY created_at ASC",
-    [slug]
+    "SELECT * FROM comments WHERE LOWER(post_slug) = LOWER($1) AND status = 'approved' ORDER BY created_at ASC",
+    [String(slug || "").trim()]
   );
   return rows.map(normalizeRow);
 }
@@ -114,6 +114,7 @@ async function getPendingCount() {
 }
 
 async function insertComment(comment) {
+  const postSlug = String(comment.post_slug || "").trim();
   const sql = `
     INSERT INTO comments
       (post_slug, name, email, message, created_at, status, parent_id, is_admin_reply)
@@ -122,7 +123,7 @@ async function insertComment(comment) {
     RETURNING *
   `;
   const params = [
-    comment.post_slug,
+    postSlug,
     comment.name || "",
     comment.email || "",
     comment.message || "",
