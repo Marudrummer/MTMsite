@@ -3,7 +3,7 @@ const fs = require("fs");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const multer = require("multer");
-const storage = require("./storage_db");
+const storageDb = require("./storage_db");
 let nodemailer = null;
 try {
   // Optional dependency for comment notifications
@@ -37,7 +37,7 @@ const {
   insertComment,
   updateComment,
   deleteComment
-} = storage;
+} = storageDb;
 
 const mailer = EMAIL_ENABLED
   ? nodemailer.createTransport({
@@ -104,7 +104,7 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-const storage = multer.diskStorage({
+const uploadStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -114,7 +114,7 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({
-  storage,
+  storage: uploadStorage,
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
