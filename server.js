@@ -168,6 +168,7 @@ app.get("/", asyncHandler(async (req, res) => {
 
 app.get("/sobre", (req, res) => res.render("sobre"));
 app.get("/servicos", (req, res) => res.render("servicos"));
+app.get("/materiais", (req, res) => res.render("materiais"));
 app.get("/blog", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).map((p) => ({ ...p, card_image: getCardImage(p) }));
   res.render("lab", { posts });
