@@ -34,14 +34,6 @@
     const onLogin = window.location.pathname === "/login";
     const nextTarget = getNextTarget();
     if (onLogin) {
-      const displayName =
-        (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) ||
-        (user.user_metadata && user.user_metadata.display_name) ||
-        user.email ||
-        "";
-      if (displayName) {
-        alert(`${displayName}, seja bem-vindo!`);
-      }
       localStorage.removeItem("mtm_next");
       window.location.href = nextTarget;
       return;
