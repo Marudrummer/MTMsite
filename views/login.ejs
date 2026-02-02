@@ -1,0 +1,39 @@
+<%- include('partials_header', { title: 'Entrar' }) %>
+<section class="hero small">
+  <div class="container">
+    <h1>Entrar</h1>
+    <p class="lead">Antes de enviar o link, precisamos de alguns dados básicos.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2">
+    <div class="card">
+      <h3>Magic Link por e-mail</h3>
+      <p>Enviaremos um link para seu e-mail. Verifique spam se não chegar.</p>
+      <form data-mtm-login-form>
+        <label>Nome
+          <input name="name" required />
+        </label>
+        <label>Empresa
+          <input name="company" required />
+        </label>
+        <label>Telefone/WhatsApp
+          <input name="phone" required />
+        </label>
+        <label>E-mail
+          <input name="email" type="email" required />
+        </label>
+        <button class="btn" type="submit">Enviar link</button>
+        <button class="btn" type="button" data-mtm-resend>Reenviar link</button>
+      </form>
+      <p class="muted mt" data-mtm-login-status></p>
+    </div>
+    <div class="card">
+      <h3>Entrar com Google</h3>
+      <p>Conecte rapidamente com sua conta Google.</p>
+      <button class="btn" type="button" data-mtm-google>Entrar com Google</button>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

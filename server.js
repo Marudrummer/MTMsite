@@ -19,6 +19,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "mtm-admin-123";
 const EMAIL_ENABLED = Boolean(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 const WHATSAPP_PHONE = process.env.WHATSAPP_PHONE || "5500000000000";
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 
 const {
   getPosts,
@@ -62,6 +64,8 @@ app.use(async (req, res, next) => {
     res.locals.pendingCount = 0;
   }
   res.locals.whatsappPhone = WHATSAPP_PHONE;
+  res.locals.supabaseUrl = SUPABASE_URL;
+  res.locals.supabaseAnonKey = SUPABASE_ANON_KEY;
   next();
 });
 
@@ -160,6 +164,15 @@ function isAuthed(req) {
   return req.cookies && req.cookies.mtm_admin === "1";
 }
 
+function requireUserAuth(req, res, next) {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  if (!token) {
+    const nextUrl = encodeURIComponent(req.originalUrl || "/");
+    return res.redirect(`/login?next=${nextUrl}`);
+  }
+  return next();
+}
+
 app.get("/", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).slice(0, 3).map((p) => ({ ...p, card_image: getCardImage(p) }));
   const site = loadSiteData();
@@ -168,7 +181,9 @@ app.get("/", asyncHandler(async (req, res) => {
 
 app.get("/sobre", (req, res) => res.render("sobre"));
 app.get("/servicos", (req, res) => res.render("servicos"));
-app.get("/materiais", (req, res) => res.render("materiais"));
+app.get("/materiais", requireUserAuth, (req, res) => res.render("materiais"));
+app.get("/login", (req, res) => res.render("login"));
+app.get("/perfil", (req, res) => res.render("perfil"));
 app.get("/blog", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).map((p) => ({ ...p, card_image: getCardImage(p) }));
   res.render("lab", { posts });
@@ -212,7 +227,7 @@ app.get("/contato", (req, res) => {
   res.render("contato", { preset });
 });
 
-app.get("/nao-sabe", (req, res) => {
+app.get("/nao-sabe", requireUserAuth, (req, res) => {
   res.render("nao_sabe", {
     whatsappPhone: WHATSAPP_PHONE,
     sent: req.query.sent === "1"

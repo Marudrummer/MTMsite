@@ -20,6 +20,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/styles.css" />
+  <script>
+    window.MTM_SUPABASE_URL = "<%= supabaseUrl || '' %>";
+    window.MTM_SUPABASE_ANON_KEY = "<%= supabaseAnonKey || '' %>";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header class="site-header">
@@ -29,11 +34,13 @@
         <a href="/">Home</a>
         <a href="/sobre">Sobre</a>
         <a href="/servicos">Serviços</a>
-        <a href="/materiais">Materiais</a>
-        <a href="/nao-sabe">Não sabe o que fazer?</a>
+        <a href="/materiais" data-protected-link>Materiais</a>
+        <a href="/nao-sabe" data-protected-link>Não sabe o que fazer?</a>
         <a href="/blog">MTM LAB</a>
         <a href="/admin">Admin<% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %><span class="badge"><%= pendingCount %></span><% } %></a>
-        <a href="/contato" class="btn">Falar com a MTM</a>
+        <a href="/login" class="nav-auth" data-auth-when="logged-out">Entrar</a>
+        <a href="/perfil" class="nav-auth" data-auth-when="logged-in">Minha conta</a>
+        <button class="btn nav-auth" type="button" data-auth-when="logged-in" data-mtm-logout>Sair</button>
       </nav>
       <button class="nav-toggle" id="navToggle" type="button" aria-label="Abrir menu" aria-controls="siteNav" aria-expanded="false">☰</button>
     </div>

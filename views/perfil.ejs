@@ -1,0 +1,29 @@
+<%- include('partials_header', { title: 'Perfil' }) %>
+<section class="hero small">
+  <div class="container">
+    <h1>Complete seu perfil</h1>
+    <p class="lead">Precisamos desses dados para liberar acesso.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="card form">
+      <h3>Seus dados</h3>
+      <form data-mtm-profile-form>
+        <label>Nome
+          <input name="name" required />
+        </label>
+        <label>Empresa
+          <input name="company" required />
+        </label>
+        <label>Telefone/WhatsApp
+          <input name="phone" required />
+        </label>
+        <button class="btn" type="submit">Salvar perfil</button>
+        <p class="muted mt" data-mtm-profile-status></p>
+      </form>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>
