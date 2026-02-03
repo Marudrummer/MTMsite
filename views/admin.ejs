@@ -8,6 +8,7 @@
       <div class="admin-actions">
         <span class="muted">Seu nível: <%= adminRole %></span>
         <a class="btn ghost" href="/admin/profiles">Cadastros</a>
+        <a class="btn ghost" href="/admin/materials">Materiais</a>
         <% if (adminRole === 'admin' || adminRole === 'super_admin') { %>
           <a class="btn ghost" href="/admin/users">Usuários admin</a>
         <% } %>

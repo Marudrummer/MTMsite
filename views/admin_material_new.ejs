@@ -1,0 +1,39 @@
+<%- include('partials_header', { title: 'Novo material' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Novo material</h1>
+        <p class="muted">Envie o arquivo e preencha os metadados.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/materials">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <form class="card form" action="/admin/materials" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+      <label>Título
+        <input name="title" required />
+      </label>
+      <label>Descrição
+        <textarea name="description" rows="4"></textarea>
+      </label>
+      <label>Tags (separadas por vírgula)
+        <input name="tags" placeholder="ex: museus, varejo" />
+      </label>
+      <label>Arquivo
+        <input type="file" name="file" required />
+      </label>
+      <label>
+        <select name="is_published">
+          <option value="false">Salvar como rascunho</option>
+          <option value="true">Publicar agora</option>
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Salvar material</button>
+    </form>
+  </div>
+</section>
+<%- include('partials_footer') %>

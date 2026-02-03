@@ -1,0 +1,61 @@
+<%- include('partials_header', { title: 'Editar material' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Editar material</h1>
+        <p class="muted"><%= material.title %></p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/materials">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="muted">Arquivo atual: <%= material.filename || '-' %></p>
+    </div>
+
+    <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+      <form class="card form" action="/admin/materials/<%= material.id %>/update" method="post">
+        <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+        <label>Título
+          <input name="title" value="<%= material.title || '' %>" required />
+        </label>
+        <label>Descrição
+          <textarea name="description" rows="4"><%= material.description || '' %></textarea>
+        </label>
+        <label>Tags (separadas por vírgula)
+          <input name="tags" value="<%= (material.tags || []).join(', ') %>" />
+        </label>
+        <label>
+          <select name="is_published">
+            <option value="false" <%= material.is_published ? '' : 'selected' %>>Rascunho</option>
+            <option value="true" <%= material.is_published ? 'selected' : '' %>>Publicado</option>
+          </select>
+        </label>
+        <button class="btn primary" type="submit">Salvar alterações</button>
+      </form>
+
+      <form class="card form" action="/admin/materials/<%= material.id %>/replace" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+        <label>Substituir arquivo
+          <input type="file" name="file" required />
+        </label>
+        <button class="btn" type="submit">Enviar novo arquivo</button>
+      </form>
+    <% } %>
+
+    <div class="card">
+      <h3>Status</h3>
+      <p class="muted"><%= material.is_published ? 'Publicado' : 'Rascunho' %></p>
+      <% if (adminRole === 'super_admin') { %>
+        <form action="/admin/materials/<%= material.id %>/delete" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <button class="btn danger" type="submit" data-confirm="Excluir definitivamente este material?">Excluir definitivo</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

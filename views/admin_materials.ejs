@@ -1,0 +1,86 @@
+<%- include('partials_header', { title: 'Materiais' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Materiais (Storage)</h1>
+        <p class="muted">Gerencie arquivos publicados para download.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+          <a class="btn" href="/admin/materials/new">Novo material</a>
+        <% } %>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card form" style="margin-bottom:24px;">
+      <form method="get" action="/admin/materials">
+        <div class="grid-3">
+          <label>Busca
+            <input name="q" value="<%= filters.q %>" placeholder="Título ou descrição" />
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="published" <%= filters.status === 'published' ? 'selected' : '' %>>Publicado</option>
+              <option value="draft" <%= filters.status === 'draft' ? 'selected' : '' %>>Rascunho</option>
+            </select>
+          </label>
+          <label>Tag
+            <input name="tag" value="<%= filters.tag %>" placeholder="ex: museus" />
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>De (data)
+            <input type="date" name="from" value="<%= filters.from %>" />
+          </label>
+          <label>Até (data)
+            <input type="date" name="to" value="<%= filters.to %>" />
+          </label>
+          <div class="admin-actions" style="align-items:flex-end;">
+            <button class="btn" type="submit">Filtrar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de materiais</h3>
+      <% if (!materials.length) { %>
+        <p class="muted">Nenhum material encontrado.</p>
+      <% } else { %>
+        <div class="table">
+          <div class="table-row table-header">
+            <div>Título</div>
+            <div>Publicado</div>
+            <div>Arquivo</div>
+            <div>Ações</div>
+          </div>
+          <% materials.forEach(material => { %>
+            <div class="table-row">
+              <div>
+                <strong><%= material.title %></strong>
+                <div class="muted"><%= material.description || '' %></div>
+                <% if (material.tags && material.tags.length) { %>
+                  <div class="tag-row">
+                    <% material.tags.forEach(tag => { %>
+                      <span class="tag small"><%= tag %></span>
+                    <% }) %>
+                  </div>
+                <% } %>
+              </div>
+              <div><%= material.is_published ? 'sim' : 'não' %></div>
+              <div class="muted"><%= material.filename || '-' %></div>
+              <div class="admin-actions">
+                <a class="btn ghost" href="/admin/materials/<%= material.id %>">Ver</a>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

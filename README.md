@@ -6,6 +6,7 @@ Este projeto agora usa Postgres (Supabase) para posts e comentários.
 
 ### 1) Criar tabelas
 Abra o **Supabase SQL Editor** e execute o conteúdo de `db/schema.sql`.
+Para materiais (Storage), execute também `db/materials_schema.sql`.
 
 ### 2) Variáveis de ambiente
 Configure no `.env` (local) e na Vercel:
@@ -17,6 +18,9 @@ WHATSAPP_PHONE=
 N8N_WEBHOOK_URL=
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+MATERIALS_BUCKET=materials
+MATERIALS_SIGNED_URL_TTL=600
 ADMIN_BOOTSTRAP_USERNAME=
 ADMIN_BOOTSTRAP_PASSWORD=
 ADMIN_BOOTSTRAP_EMAIL=
@@ -88,3 +92,10 @@ Filtros disponíveis:
 Exportação:
 - `/admin/profiles/export.csv`
 - `/admin/profiles/export.json`
+
+## Materiais (Storage)
+1) Execute `db/materials_schema.sql` no Supabase SQL Editor.
+2) Crie o bucket `materials` no Supabase Storage.
+3) Configure `SUPABASE_SERVICE_ROLE_KEY` na Vercel (somente server).
+4) Acesse `/admin/materials` para enviar e publicar arquivos.
+5) A rota `/materiais` lista apenas materiais publicados.

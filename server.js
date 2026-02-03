@@ -6,6 +6,8 @@ const cookieParser = require("cookie-parser");
 const { pool } = require("./src/db");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const { createClient } = require("@supabase/supabase-js");
+const multer = require("multer");
 const storageDb = require("./storage_db");
 let nodemailer = null;
 try {
@@ -31,6 +33,22 @@ const WHATSAPP_PHONE = process.env.WHATSAPP_PHONE || "5500000000000";
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const MATERIALS_BUCKET = process.env.MATERIALS_BUCKET || "materials";
+const MATERIALS_SIGNED_URL_TTL = Number(process.env.MATERIALS_SIGNED_URL_TTL || 600);
+const DOWNLOAD_RATE_LIMIT = { windowMs: 10 * 60 * 1000, max: 30 };
+const downloadAttemptsByIp = new Map();
+
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    })
+  : null;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }
+});
 
 const {
   getPosts,
@@ -202,6 +220,36 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function safeFilename(name) {
+  return String(name || "arquivo")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9._-]/g, "");
+}
+
+function decodeJwtSub(token) {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+    return payload.sub || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function consumeDownloadRateLimit(ip) {
+  const now = Date.now();
+  let entry = downloadAttemptsByIp.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + DOWNLOAD_RATE_LIMIT.windowMs };
+  }
+  entry.count += 1;
+  downloadAttemptsByIp.set(ip, entry);
+  return entry;
+}
+
 function isStrongPassword(value) {
   const text = String(value || "");
   if (text.length < 12) return false;
@@ -368,7 +416,40 @@ app.get("/", asyncHandler(async (req, res) => {
 
 app.get("/sobre", (req, res) => res.render("sobre"));
 app.get("/servicos", (req, res) => res.render("servicos"));
-app.get("/materiais", requireUserAuth, (req, res) => res.render("materiais"));
+app.get("/materiais", requireUserAuth, asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery(
+    "SELECT id, title, description, tags, filename, size_bytes, created_at FROM materials WHERE is_published = true ORDER BY created_at DESC"
+  );
+  res.render("materiais", { materials: rows || [] });
+}));
+
+app.get("/materiais/:id/download", requireUserAuth, asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
+  const { rows } = await adminQuery(
+    "SELECT * FROM materials WHERE id = $1 AND is_published = true LIMIT 1",
+    [req.params.id]
+  );
+  const material = rows[0];
+  if (!material) return res.status(404).render("404");
+
+  const ip = getClientIp(req);
+  const rateEntry = consumeDownloadRateLimit(ip);
+  if (rateEntry.count > DOWNLOAD_RATE_LIMIT.max) {
+    return res.status(429).send("Muitas solicitações. Tente novamente em alguns minutos.");
+  }
+
+  const { data, error } = await supabaseAdmin.storage
+    .from(material.storage_bucket || MATERIALS_BUCKET)
+    .createSignedUrl(material.storage_path, MATERIALS_SIGNED_URL_TTL);
+  if (error || !data?.signedUrl) return res.status(500).send("Não foi possível gerar o download.");
+
+  const profileId = decodeJwtSub(req.cookies && req.cookies.mtm_access_token);
+  await adminQuery(
+    "INSERT INTO material_downloads (material_id, profile_id) VALUES ($1,$2)",
+    [material.id, profileId || null]
+  );
+  res.redirect(data.signedUrl);
+}));
 app.get("/login", (req, res) => res.render("login"));
 app.get("/perfil", (req, res) => res.render("perfil"));
 app.get("/blog", asyncHandler(async (req, res) => {
@@ -705,6 +786,155 @@ app.post("/admin/profiles/:id/delete", requireAdmin("super_admin"), requireAdmin
   await adminQuery("DELETE FROM profiles WHERE id = $1", [req.params.id]);
   await logAudit(req.admin && req.admin.id, "profile_deleted", "profiles", req.params.id, {});
   res.redirect("/admin/profiles");
+}));
+
+app.get("/admin/materials", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.query.status || "all",
+    q: String(req.query.q || "").trim(),
+    from: req.query.from || "",
+    to: req.query.to || "",
+    tag: String(req.query.tag || "").trim()
+  };
+  const where = [];
+  const params = [];
+  let idx = 1;
+  if (filters.status === "published") {
+    where.push(`is_published = true`);
+  } else if (filters.status === "draft") {
+    where.push(`is_published = false`);
+  }
+  if (filters.from) {
+    where.push(`created_at >= $${idx++}`);
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    where.push(`created_at <= $${idx++}`);
+    params.push(filters.to);
+  }
+  if (filters.q) {
+    where.push(`(title ILIKE $${idx} OR description ILIKE $${idx})`);
+    params.push(`%${filters.q}%`);
+    idx += 1;
+  }
+  if (filters.tag) {
+    where.push(`tags ? $${idx++}`);
+    params.push(filters.tag);
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const { rows } = await adminQuery(
+    `SELECT id, title, description, tags, filename, size_bytes, is_published, created_at
+     FROM materials
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  res.render("admin_materials", { materials: rows || [], filters });
+}));
+
+app.get("/admin/materials/new", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  res.render("admin_material_new");
+}));
+
+app.post("/admin/materials", requireAdmin("editor"), requireAdminCsrf, upload.single("file"), asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
+  const file = req.file;
+  const title = String(req.body.title || "").trim();
+  const description = String(req.body.description || "").trim();
+  const tagsRaw = String(req.body.tags || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean) : [];
+  const isPublished = req.body.is_published === "true";
+  if (!file || !title) return res.status(400).send("Arquivo e título são obrigatórios.");
+
+  const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
+  if (!allowed.includes(file.mimetype)) {
+    return res.status(400).send("Tipo de arquivo não permitido.");
+  }
+
+  const ext = safeFilename(file.originalname);
+  const now = new Date();
+  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(MATERIALS_BUCKET)
+    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+  if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+
+  await adminQuery(
+    `INSERT INTO materials (title, description, tags, storage_bucket, storage_path, filename, content_type, size_bytes, is_published)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [title, description, JSON.stringify(tags), MATERIALS_BUCKET, storagePath, file.originalname, file.mimetype, file.size, isPublished]
+  );
+  await logAudit(req.admin && req.admin.id, "material_created", "materials", storagePath, { title, is_published: isPublished });
+  res.redirect("/admin/materials");
+}));
+
+app.get("/admin/materials/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery("SELECT * FROM materials WHERE id = $1", [req.params.id]);
+  const material = rows[0];
+  if (!material) return res.status(404).render("404");
+  res.render("admin_material_edit", { material });
+}));
+
+app.post("/admin/materials/:id/update", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const title = String(req.body.title || "").trim();
+  const description = String(req.body.description || "").trim();
+  const tagsRaw = String(req.body.tags || "").trim();
+  const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean) : [];
+  const isPublished = req.body.is_published === "true";
+  await adminQuery(
+    "UPDATE materials SET title=$1, description=$2, tags=$3, is_published=$4, updated_at=now() WHERE id=$5",
+    [title, description, JSON.stringify(tags), isPublished, req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, isPublished ? "material_published" : "material_unpublished", "materials", req.params.id, { title });
+  res.redirect(`/admin/materials/${req.params.id}`);
+}));
+
+app.post("/admin/materials/:id/replace", requireAdmin("editor"), requireAdminCsrf, upload.single("file"), asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
+  const file = req.file;
+  if (!file) return res.status(400).send("Arquivo obrigatório.");
+  const { rows } = await adminQuery("SELECT * FROM materials WHERE id = $1", [req.params.id]);
+  const material = rows[0];
+  if (!material) return res.status(404).render("404");
+
+  const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
+  if (!allowed.includes(file.mimetype)) {
+    return res.status(400).send("Tipo de arquivo não permitido.");
+  }
+
+  const ext = safeFilename(file.originalname);
+  const now = new Date();
+  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(MATERIALS_BUCKET)
+    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+  if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+
+  if (material.storage_path) {
+    await supabaseAdmin.storage.from(MATERIALS_BUCKET).remove([material.storage_path]);
+  }
+
+  await adminQuery(
+    "UPDATE materials SET storage_path=$1, filename=$2, content_type=$3, size_bytes=$4, updated_at=now() WHERE id=$5",
+    [storagePath, file.originalname, file.mimetype, file.size, req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, "material_file_replaced", "materials", req.params.id, { storage_path: storagePath });
+  res.redirect(`/admin/materials/${req.params.id}`);
+}));
+
+app.post("/admin/materials/:id/delete", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
+  const { rows } = await adminQuery("SELECT * FROM materials WHERE id = $1", [req.params.id]);
+  const material = rows[0];
+  if (!material) return res.status(404).render("404");
+  if (material.storage_path) {
+    await supabaseAdmin.storage.from(MATERIALS_BUCKET).remove([material.storage_path]);
+  }
+  await adminQuery("DELETE FROM materials WHERE id = $1", [req.params.id]);
+  await logAudit(req.admin && req.admin.id, "material_deleted", "materials", req.params.id, { title: material.title });
+  res.redirect("/admin/materials");
 }));
 
 app.post("/admin/posts", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {

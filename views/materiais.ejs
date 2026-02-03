@@ -8,32 +8,34 @@
 
 <section class="section">
   <div class="container cards">
-    <div class="card link-card">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-          <path d="M14 2v6h6"/>
-          <path d="M12 18v-6"/>
-          <path d="M9 15l3 3 3-3"/>
-        </svg>
+    <% if (!materials || !materials.length) { %>
+      <div class="card">
+        <p class="muted">Em breve novos materiais para download.</p>
       </div>
-      <h3>Varejo e Shoppings</h3>
-      <p>Apresentação com soluções para varejo, fluxo de público e experiências no ponto de venda.</p>
-      <a class="btn" href="/docs/MTM-Portfolio-Varejo-e-Shoppings.pdf" target="_blank" rel="noreferrer">Baixar PDF</a>
-    </div>
-    <div class="card link-card">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-          <path d="M14 2v6h6"/>
-          <path d="M12 18v-6"/>
-          <path d="M9 15l3 3 3-3"/>
-        </svg>
-      </div>
-      <h3>Museus e Cultura</h3>
-      <p>Experiências interativas, narrativa e tecnologia aplicada para museus e espaços culturais.</p>
-      <a class="btn" href="/docs/MTM-Portfolio-Museus.pdf" target="_blank" rel="noreferrer">Baixar PDF</a>
-    </div>
+    <% } else { %>
+      <% materials.forEach(material => { %>
+        <div class="card link-card">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+              <path d="M14 2v6h6"/>
+              <path d="M12 18v-6"/>
+              <path d="M9 15l3 3 3-3"/>
+            </svg>
+          </div>
+          <h3><%= material.title %></h3>
+          <p><%= material.description || '' %></p>
+          <% if (material.tags && material.tags.length) { %>
+            <div class="tag-row">
+              <% material.tags.forEach(tag => { %>
+                <span class="tag small"><%= tag %></span>
+              <% }) %>
+            </div>
+          <% } %>
+          <a class="btn" href="/materiais/<%= material.id %>/download">Baixar material</a>
+        </div>
+      <% }) %>
+    <% } %>
   </div>
 </section>
 <%- include('partials_footer') %>

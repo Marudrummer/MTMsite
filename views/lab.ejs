@@ -8,36 +8,44 @@
 
 <section class="section">
   <div class="container">
-    <div class="lab-controls">
-      <input id="searchInput" type="text" placeholder="Buscar artigos..." />
-      <select id="categoryFilter">
-        <option value="">Todas as categorias</option>
-        <% const categories = [...new Set(posts.map(p => p.category))]; %>
-        <% categories.forEach(cat => { %>
-          <option value="<%= cat %>"><%= cat %></option>
-        <% }) %>
-      </select>
-    </div>
-    <div class="cards" id="postGrid">
-      <% posts.forEach(post => { %>
-        <a class="card link-card work-card" data-category="<%= post.category %>" href="/blog/<%= post.slug %>">
-          <div class="card-media work-media" style="background-image: url('<%= post.card_image %>')"></div>
-          <h3><%= post.title %></h3>
-          <p><%= post.excerpt %></p>
-          <div class="meta">
-            <span><%= post.created_at.split('T')[0] %></span>
-          </div>
-          <span class="tag"><%= post.category %></span>
-          <% if (post.tags) { %>
-            <div class="tag-row">
-              <% post.tags.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => { %>
-                <span class="tag small"><%= tag %></span>
-              <% }) %>
+    <% if (!posts || !posts.length) { %>
+      <div class="cards">
+        <div class="card">
+          <p class="muted">Em breve novos conteúdos do MTM LAB.</p>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="lab-controls">
+        <input id="searchInput" type="text" placeholder="Buscar artigos..." />
+        <select id="categoryFilter">
+          <option value="">Todas as categorias</option>
+          <% const categories = [...new Set(posts.map(p => p.category))]; %>
+          <% categories.forEach(cat => { %>
+            <option value="<%= cat %>"><%= cat %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="cards" id="postGrid">
+        <% posts.forEach(post => { %>
+          <a class="card link-card work-card" data-category="<%= post.category %>" href="/blog/<%= post.slug %>">
+            <div class="card-media work-media" style="background-image: url('<%= post.card_image %>')"></div>
+            <h3><%= post.title %></h3>
+            <p><%= post.excerpt %></p>
+            <div class="meta">
+              <span><%= post.created_at.split('T')[0] %></span>
             </div>
-          <% } %>
-        </a>
-      <% }) %>
-    </div>
+            <span class="tag"><%= post.category %></span>
+            <% if (post.tags) { %>
+              <div class="tag-row">
+                <% post.tags.split(',').map(t => t.trim()).filter(Boolean).forEach(tag => { %>
+                  <span class="tag small"><%= tag %></span>
+                <% }) %>
+              </div>
+            <% } %>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 </section>
 <%- include('partials_footer') %>
