@@ -155,6 +155,8 @@
         const { data: userData } = await supabase.auth.getUser();
         const user = userData && userData.user;
         if (!user) return;
+        const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
+        const provider = rawProvider === "email" ? "magiclink" : rawProvider;
 
         const payload = {
           id: user.id,
@@ -162,6 +164,7 @@
           name: profileForm.querySelector("input[name='name']").value.trim(),
           company: profileForm.querySelector("input[name='company']").value.trim(),
           phone: profileForm.querySelector("input[name='phone']").value.trim(),
+          provider,
           updated_at: new Date().toISOString()
         };
 
@@ -185,11 +188,15 @@
       const { data: userData } = await supabase.auth.getUser();
       const user = userData && userData.user;
       if (user) {
+        const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
+        const provider = rawProvider === "email" ? "magiclink" : rawProvider;
         const pendingRaw = localStorage.getItem(pendingKey);
         if (pendingRaw) {
           try {
             const pending = JSON.parse(pendingRaw);
             if (pending && pending.email && pending.email === user.email) {
+              const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
+              const provider = rawProvider === "email" ? "magiclink" : rawProvider;
               await supabase.from("profiles").upsert(
                 {
                   id: user.id,
@@ -197,6 +204,7 @@
                   name: pending.name,
                   company: pending.company,
                   phone: pending.phone,
+                  provider,
                   updated_at: pending.updated_at || new Date().toISOString()
                 },
                 { onConflict: "id" }
@@ -206,6 +214,19 @@
           } catch (err) {
             localStorage.removeItem(pendingKey);
           }
+        } else {
+          await supabase.from("profiles").upsert(
+            {
+              id: user.id,
+              email: user.email,
+              name: user.user_metadata && user.user_metadata.full_name ? user.user_metadata.full_name : "",
+              company: "",
+              phone: "",
+              provider,
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: "id" }
+          );
         }
       }
       ensureProfile();

@@ -17,6 +17,9 @@ WHATSAPP_PHONE=
 N8N_WEBHOOK_URL=
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
+ADMIN_BOOTSTRAP_USERNAME=
+ADMIN_BOOTSTRAP_PASSWORD=
+ADMIN_BOOTSTRAP_EMAIL=
 SMTP_HOST=
 SMTP_PORT=
 SMTP_SECURE=
@@ -47,6 +50,7 @@ npm start
 
 ## Auth (Supabase)
 1) Execute `db/profiles_schema.sql` no Supabase SQL Editor.
+2) Execute `db/profiles_admin_patch.sql` para adicionar provider/estado (admin).
 2) Configure Google OAuth no Supabase Auth:
    - Redirect URLs: `https://seu-dominio.com.br/login` e `http://localhost:3000/login`.
 3) Defina `SUPABASE_URL` e `SUPABASE_ANON_KEY` no `.env` e na Vercel.
@@ -54,3 +58,33 @@ npm start
    - Deslogado → acessar `/materiais` → redireciona para `/login`.
    - Login → preencher `/perfil`.
    - Após perfil completo → acesso liberado.
+
+## Admin (login fixo com usuários locais)
+1) Execute `db/admin_schema.sql` no Supabase SQL Editor.
+2) Execute `db/admin_security_patch.sql` para aplicar lockout e sessão segura (em bases já criadas).
+3) Configure as env vars do bootstrap (somente se ainda não houver admins):
+   - `ADMIN_BOOTSTRAP_USERNAME`
+   - `ADMIN_BOOTSTRAP_PASSWORD`
+   - `ADMIN_BOOTSTRAP_EMAIL` (opcional)
+4) Inicie o app e acesse `/admin/login` com o usuário bootstrap.
+5) Em `/admin/users`, cadastre outros admins e defina roles.
+
+### Segurança do admin
+- O bootstrap só roda se **admin_accounts estiver vazio**.
+- Senha mínima: **12+ caracteres** com letras e números.
+- Rate limit por IP (10 tentativas / 15 min).
+- Lockout por usuário após 5 falhas (15 min).
+
+## Cadastros (profiles)
+Permissões por role:
+- reader: visualizar lista/detalhe
+- editor: editar, desativar/reativar e exportar
+- admin: igual editor
+- super_admin: igual editor + exclusão definitiva
+
+Filtros disponíveis:
+- provider, status (ativos/inativos), data (range), busca por nome/email/empresa
+
+Exportação:
+- `/admin/profiles/export.csv`
+- `/admin/profiles/export.json`

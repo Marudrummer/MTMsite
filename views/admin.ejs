@@ -5,12 +5,22 @@
     <% const approvedList = typeof approvedComments !== 'undefined' ? approvedComments : []; %>
     <div class="admin-header">
       <h1>Publicar novo artigo</h1>
-      <form action="/admin/logout" method="post">
-        <button class="btn ghost" type="submit">Sair</button>
-      </form>
+      <div class="admin-actions">
+        <span class="muted">Seu nível: <%= adminRole %></span>
+        <a class="btn ghost" href="/admin/profiles">Cadastros</a>
+        <% if (adminRole === 'admin' || adminRole === 'super_admin') { %>
+          <a class="btn ghost" href="/admin/users">Usuários admin</a>
+        <% } %>
+        <form action="/admin/logout" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <button class="btn ghost" type="submit">Sair</button>
+        </form>
+      </div>
     </div>
     <div class="grid-2 admin-grid">
+      <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
       <form class="card form" action="/admin/posts" method="post" data-admin-form>
+        <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
         <label>Título
           <input name="title" required />
         </label>
@@ -55,6 +65,13 @@
         </label>
         <button class="btn primary" type="submit">Publicar</button>
       </form>
+      <% } else { %>
+        <div class="card preview">
+          <p class="eyebrow">Acesso somente leitura</p>
+          <h3>Você está como <%= adminRole %></h3>
+          <p class="muted">Você pode visualizar conteúdos, mas não publicar ou editar.</p>
+        </div>
+      <% } %>
 
       <div class="card preview" id="postPreview">
         <p class="eyebrow">Prévia</p>
@@ -84,26 +101,36 @@
             </div>
             <p><%= comment.message %></p>
             <div class="admin-actions">
-              <form action="/admin/comments/<%= comment.id %>/approve" method="post">
-                <button class="btn primary" type="submit">Aprovar</button>
-              </form>
-              <form action="/admin/comments/<%= comment.id %>/delete" method="post">
-                <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
-              </form>
+              <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+                <form action="/admin/comments/<%= comment.id %>/approve" method="post">
+                  <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                  <button class="btn primary" type="submit">Aprovar</button>
+                </form>
+              <% } %>
+              <% if (adminRole === 'admin' || adminRole === 'super_admin') { %>
+                <form action="/admin/comments/<%= comment.id %>/delete" method="post">
+                  <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                  <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
+                </form>
+              <% } %>
             </div>
-            <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
-              <label>Editar comentário
-                <textarea name="message" rows="3" required><%= comment.message %></textarea>
-              </label>
-              <button class="btn ghost" type="submit">Salvar edição</button>
-            </form>
-            <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
-              <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
-              <label>Responder
-                <textarea name="message" rows="3" required></textarea>
-              </label>
-              <button class="btn ghost" type="submit">Responder</button>
-            </form>
+            <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
+                <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                <label>Editar comentário
+                  <textarea name="message" rows="3" required><%= comment.message %></textarea>
+                </label>
+                <button class="btn ghost" type="submit">Salvar edição</button>
+              </form>
+              <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
+                <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
+                <label>Responder
+                  <textarea name="message" rows="3" required></textarea>
+                </label>
+                <button class="btn ghost" type="submit">Responder</button>
+              </form>
+            <% } %>
           </div>
         <% }) %>
       </div>
@@ -122,23 +149,30 @@
             </div>
             <p><%= comment.message %></p>
             <div class="admin-actions">
-              <form action="/admin/comments/<%= comment.id %>/delete" method="post">
-                <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
-              </form>
+              <% if (adminRole === 'admin' || adminRole === 'super_admin') { %>
+                <form action="/admin/comments/<%= comment.id %>/delete" method="post">
+                  <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                  <button class="btn danger" type="submit" data-confirm="Excluir comentário?">Excluir</button>
+                </form>
+              <% } %>
             </div>
-            <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
-              <label>Editar comentário
-                <textarea name="message" rows="3" required><%= comment.message %></textarea>
-              </label>
-              <button class="btn ghost" type="submit">Salvar edição</button>
-            </form>
-            <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
-              <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
-              <label>Responder
-                <textarea name="message" rows="3" required></textarea>
-              </label>
-              <button class="btn ghost" type="submit">Responder</button>
-            </form>
+            <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <form class="reply-form" action="/admin/comments/<%= comment.id %>/update" method="post">
+                <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                <label>Editar comentário
+                  <textarea name="message" rows="3" required><%= comment.message %></textarea>
+                </label>
+                <button class="btn ghost" type="submit">Salvar edição</button>
+              </form>
+              <form class="reply-form" action="/admin/comments/<%= comment.id %>/reply" method="post">
+                <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                <input type="hidden" name="post_slug" value="<%= comment.post_slug %>" />
+                <label>Responder
+                  <textarea name="message" rows="3" required></textarea>
+                </label>
+                <button class="btn ghost" type="submit">Responder</button>
+              </form>
+            <% } %>
           </div>
         <% }) %>
       </div>
@@ -157,10 +191,15 @@
           <p><%= post.excerpt %></p>
           <span class="tag"><%= post.category %></span>
           <div class="admin-actions">
-            <a class="btn ghost" href="/admin/posts/<%= post.id %>/edit">Editar</a>
-            <form action="/admin/posts/<%= post.id %>/delete" method="post">
-              <button class="btn danger" type="submit" data-confirm="Excluir este artigo?">Excluir</button>
-            </form>
+            <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <a class="btn ghost" href="/admin/posts/<%= post.id %>/edit">Editar</a>
+            <% } %>
+            <% if (adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <form action="/admin/posts/<%= post.id %>/delete" method="post">
+                <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+                <button class="btn danger" type="submit" data-confirm="Excluir este artigo?">Excluir</button>
+              </form>
+            <% } %>
           </div>
         </div>
       <% }) %>

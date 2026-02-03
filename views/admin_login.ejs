@@ -2,9 +2,13 @@
 <section class="section">
   <div class="container small">
     <div class="card">
-      <h1>Admin LAB MTM</h1>
-      <p class="muted">Área restrita para publicação de artigos.</p>
+      <h1>Admin MTM</h1>
+      <p class="muted">Acesso restrito para publicação de artigos.</p>
       <form action="/admin/login" method="post">
+        <input type="hidden" name="next" value="<%= next || '' %>" />
+        <label>Usuário
+          <input type="text" name="username" required />
+        </label>
         <label>Senha
           <input type="password" name="password" required />
         </label>

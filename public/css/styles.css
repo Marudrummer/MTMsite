@@ -294,6 +294,8 @@ a { color: inherit; text-decoration: none; }
   padding: 70px 0;
   background: linear-gradient(130deg, rgba(26, 50, 96, 0.9), rgba(242, 184, 75, 0.22));
   color: #f5f7ff;
+  position: relative;
+  z-index: 1;
 }
 
 .cta h2,
@@ -315,6 +317,12 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 30px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
 }
 
 .founder-grid {
@@ -356,10 +364,19 @@ a { color: inherit; text-decoration: none; }
 
 .error { color: #f87171; margin-top: 8px; }
 
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 .site-footer {
   border-top: 1px solid var(--border);
   padding: 40px 0;
   background: rgba(255, 255, 255, 0.95);
+  position: relative;
+  z-index: 0;
 }
 
 .footer-grid {
@@ -411,6 +428,36 @@ a { color: inherit; text-decoration: none; }
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .admin-actions { display: flex; gap: 10px; margin-top: 14px; align-items: center; }
 .admin-actions form { margin: 0; }
+
+.legacy-banner {
+  background: rgba(242, 184, 75, 0.2);
+  border: 1px solid rgba(242, 184, 75, 0.5);
+  color: #f5f7ff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.table {
+  display: grid;
+  gap: 12px;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table-header {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+}
 .admin-grid { align-items: start; }
 .preview { position: sticky; top: 80px; height: fit-content; }
 .preview-body { margin-top: 12px; color: var(--muted); }
@@ -625,7 +672,7 @@ a { color: inherit; text-decoration: none; }
 .carousel-btn.next { right: 0; }
 
 @media (max-width: 900px) {
-  .hero-grid, .grid-2 { grid-template-columns: 1fr; }
+  .hero-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .founder-grid { grid-template-columns: 1fr; }
   .founder-photo img { max-width: 100%; }
   .nav {

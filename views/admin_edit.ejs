@@ -3,10 +3,16 @@
   <div class="container">
     <div class="admin-header">
       <h1>Editar artigo</h1>
-      <a class="btn ghost" href="/admin">Voltar</a>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/profiles">Cadastros</a>
+        <a class="btn ghost" href="/admin/users">Usuários admin</a>
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
     </div>
     <div class="grid-2 admin-grid">
       <form class="card form" action="/admin/posts/<%= post.id %>" method="post" data-admin-form>
+        <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
         <label>Título
           <input name="title" value="<%= post.title %>" required />
         </label>

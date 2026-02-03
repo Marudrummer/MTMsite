@@ -1,0 +1,77 @@
+<%- include('partials_header', { title: 'Cadastro' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Cadastro</h1>
+        <p class="muted"><%= profile.email || profile.id %></p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/profiles">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <% if (typeof saved !== 'undefined' && saved) { %>
+        <p class="success">Cadastro atualizado com sucesso.</p>
+      <% } %>
+      <div class="grid-2">
+        <div>
+          <p><strong>Nome:</strong> <%= profile.name || '-' %></p>
+          <p><strong>Email:</strong> <%= profile.email || '-' %></p>
+          <p><strong>Empresa:</strong> <%= profile.company || '-' %></p>
+          <p><strong>Telefone:</strong> <%= profile.phone || '-' %></p>
+        </div>
+        <div>
+          <p><strong>Provider:</strong> <%= profile.provider || '-' %></p>
+          <p><strong>Status:</strong> <%= profile.is_active ? 'ativo' : 'inativo' %></p>
+          <p><strong>Criado em:</strong> <%= profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : '-' %></p>
+          <p><strong>Atualizado em:</strong> <%= profile.updated_at ? new Date(profile.updated_at).toISOString().split('T')[0] : '-' %></p>
+        </div>
+      </div>
+    </div>
+
+    <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+      <div class="card form">
+        <h3>Editar cadastro</h3>
+        <form action="/admin/profiles/<%= profile.id %>/update" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <label>Nome
+            <input name="name" value="<%= profile.name || '' %>" maxlength="120" />
+          </label>
+          <label>Empresa
+            <input name="company" value="<%= profile.company || '' %>" maxlength="120" />
+          </label>
+          <label>Telefone/WhatsApp
+            <input name="phone" value="<%= profile.phone || '' %>" maxlength="40" />
+          </label>
+          <button class="btn" type="submit">Salvar</button>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Status</h3>
+        <div class="admin-actions">
+          <% if (profile.is_active) { %>
+            <form action="/admin/profiles/<%= profile.id %>/deactivate" method="post">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <button class="btn danger" type="submit">Desativar</button>
+            </form>
+          <% } else { %>
+            <form action="/admin/profiles/<%= profile.id %>/reactivate" method="post">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <button class="btn" type="submit">Reativar</button>
+            </form>
+          <% } %>
+          <% if (adminRole === 'super_admin') { %>
+            <form action="/admin/profiles/<%= profile.id %>/delete" method="post">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <button class="btn danger" type="submit" data-confirm="Excluir definitivamente este cadastro?">Excluir definitivo</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</section>
+<%- include('partials_footer') %>

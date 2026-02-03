@@ -1,0 +1,94 @@
+<%- include('partials_header', { title: 'Cadastros' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Cadastros</h1>
+        <p class="muted">Usuários cadastrados no site.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card form" style="margin-bottom:24px;">
+      <form method="get" action="/admin/profiles">
+        <div class="grid-3">
+          <label>Busca
+            <input name="q" value="<%= filters.q %>" placeholder="Nome, e-mail ou empresa" />
+          </label>
+          <label>Provider
+            <select name="provider">
+              <option value="all" <%= filters.provider === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="google" <%= filters.provider === 'google' ? 'selected' : '' %>>Google</option>
+              <option value="magiclink" <%= filters.provider === 'magiclink' ? 'selected' : '' %>>Magic Link</option>
+            </select>
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Ativo</option>
+              <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inativo</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>De (data)
+            <input type="date" name="from" value="<%= filters.from %>" />
+          </label>
+          <label>Até (data)
+            <input type="date" name="to" value="<%= filters.to %>" />
+          </label>
+          <div class="admin-actions" style="align-items:flex-end;">
+            <button class="btn" type="submit">Filtrar</button>
+            <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <a class="btn ghost" href="/admin/profiles/export.csv?<%= new URLSearchParams(filters).toString() %>">Exportar CSV</a>
+              <a class="btn ghost" href="/admin/profiles/export.json?<%= new URLSearchParams(filters).toString() %>">Exportar JSON</a>
+            <% } %>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de cadastros</h3>
+      <% if (!profiles.length) { %>
+        <p class="muted">Nenhum cadastro encontrado.</p>
+      <% } else { %>
+        <div class="table">
+          <div class="table-row table-header">
+            <div>Nome</div>
+            <div>Provider</div>
+            <div>Status</div>
+            <div>Ações</div>
+          </div>
+          <% profiles.forEach(function(profile){ %>
+            <div class="table-row">
+              <div>
+                <strong><%= profile.name || 'Sem nome' %></strong>
+                <div class="muted"><%= profile.email || '' %></div>
+                <div class="muted"><%= profile.company || '' %></div>
+              </div>
+              <div><%= profile.provider || '-' %></div>
+              <div><%= profile.is_active ? 'ativo' : 'inativo' %></div>
+              <div class="admin-actions">
+                <a class="btn ghost" href="/admin/profiles/<%= profile.id %>">Ver</a>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <% const totalPages = Math.max(1, Math.ceil(total / perPage)); %>
+    <% if (totalPages > 1) { %>
+      <div class="pagination">
+        <% for (let p = 1; p <= totalPages; p++) { %>
+          <a class="btn <%= p === page ? 'primary' : 'ghost' %>" href="/admin/profiles?<%= new URLSearchParams({ ...filters, page: p }).toString() %>"><%= p %></a>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<%- include('partials_footer') %>

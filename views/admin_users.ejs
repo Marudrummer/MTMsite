@@ -1,0 +1,93 @@
+<%- include('partials_header', { title: 'Usuários admin' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Usuários admin</h1>
+        <p class="muted">Cadastre novos acessos e ajuste permissões.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/profiles">Cadastros</a>
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <% if (adminRole !== 'admin' && adminRole !== 'super_admin') { %>
+      <div class="card">
+        <p class="muted">Seu nível atual não permite gerenciar usuários admin.</p>
+      </div>
+    <% } else { %>
+    <div class="card form" style="margin-bottom:24px;">
+      <h3>Novo usuário admin</h3>
+      <form action="/admin/users" method="post" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+        <label>Usuário
+          <input name="username" required autocomplete="off" autocapitalize="off" />
+        </label>
+        <label>E-mail (opcional)
+          <input name="email" type="email" autocomplete="off" />
+        </label>
+        <label>Senha
+          <input name="password" type="password" required autocomplete="new-password" />
+        </label>
+        <label>Role
+          <select name="role">
+            <option value="reader">reader</option>
+            <option value="editor">editor</option>
+            <option value="admin">admin</option>
+            <option value="super_admin">super_admin</option>
+          </select>
+        </label>
+        <button class="btn" type="submit">Criar usuário</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de admins</h3>
+      <div class="table">
+        <div class="table-row table-header">
+          <div>Usuário</div>
+          <div>Role</div>
+          <div>Status</div>
+          <div>Ações</div>
+        </div>
+        <% admins.forEach(function(admin){ %>
+          <form class="table-row" action="/admin/users/<%= admin.id %>" method="post">
+            <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+            <div>
+              <strong><%= admin.username %></strong>
+              <% if (admin.email) { %>
+                <div class="muted"><%= admin.email %></div>
+              <% } %>
+            </div>
+            <div>
+              <select name="role">
+                <option value="reader" <%= admin.role === 'reader' ? 'selected' : '' %>>reader</option>
+                <option value="editor" <%= admin.role === 'editor' ? 'selected' : '' %>>editor</option>
+                <option value="admin" <%= admin.role === 'admin' ? 'selected' : '' %>>admin</option>
+                <option value="super_admin" <%= admin.role === 'super_admin' ? 'selected' : '' %>>super_admin</option>
+              </select>
+            </div>
+            <div>
+              <select name="is_active">
+                <option value="true" <%= admin.is_active ? 'selected' : '' %>>ativo</option>
+                <option value="false" <%= !admin.is_active ? 'selected' : '' %>>inativo</option>
+              </select>
+            </div>
+            <div class="admin-actions">
+              <input name="password" type="password" placeholder="Nova senha" />
+              <button class="btn" type="submit">Salvar</button>
+            </div>
+          </form>
+          <form action="/admin/users/<%= admin.id %>/delete" method="post" style="margin-bottom:12px;">
+            <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+            <button class="btn danger" type="submit">Excluir</button>
+          </form>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</section>
+<%- include('partials_footer') %>

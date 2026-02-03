@@ -3,6 +3,9 @@ const fs = require("fs");
 require("dotenv").config();
 const express = require("express");
 const cookieParser = require("cookie-parser");
+const { pool } = require("./src/db");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const storageDb = require("./storage_db");
 let nodemailer = null;
 try {
@@ -15,7 +18,14 @@ const SITE_PATH = path.join(__dirname, "db", "site.json");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "mtm-admin-123";
+const ADMIN_BOOTSTRAP_USERNAME = process.env.ADMIN_BOOTSTRAP_USERNAME || "";
+const ADMIN_BOOTSTRAP_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD || "";
+const ADMIN_BOOTSTRAP_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL || "";
+const ADMIN_LOGIN_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  max: 10
+};
+const adminLoginAttemptsByIp = new Map();
 const EMAIL_ENABLED = Boolean(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 const WHATSAPP_PHONE = process.env.WHATSAPP_PHONE || "5500000000000";
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
@@ -58,7 +68,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use(async (req, res, next) => {
   try {
-    res.locals.pendingCount = isAuthed(req) ? await getPendingCount() : 0;
+    res.locals.pendingCount = isAnyAdmin(req) ? await getPendingCount() : 0;
   } catch (err) {
     console.error("Pending count failed:", err && err.message ? err.message : err);
     res.locals.pendingCount = 0;
@@ -68,6 +78,10 @@ app.use(async (req, res, next) => {
   res.locals.supabaseAnonKey = SUPABASE_ANON_KEY;
   next();
 });
+
+setTimeout(() => {
+  ensureBootstrapAdmin();
+}, 500);
 
 if (!fs.existsSync(SITE_PATH)) {
   fs.writeFileSync(
@@ -160,8 +174,181 @@ async function ensureUniqueSlugForUpdate(title, requestedSlug, excludeId) {
   return slug;
 }
 
-function isAuthed(req) {
-  return req.cookies && req.cookies.mtm_admin === "1";
+function isAnyAdmin(req) {
+  return Boolean(req.cookies && req.cookies.mtm_admin_session);
+}
+
+const roleRank = {
+  reader: 1,
+  editor: 2,
+  admin: 3,
+  super_admin: 4
+};
+
+function canEditProfiles(role) {
+  return role === "editor" || role === "admin" || role === "super_admin";
+}
+
+function canDeleteProfiles(role) {
+  return role === "super_admin";
+}
+
+async function adminQuery(sql, params) {
+  if (!pool) throw new Error("DATABASE_URL not configured.");
+  return pool.query(sql, params);
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function isStrongPassword(value) {
+  const text = String(value || "");
+  if (text.length < 12) return false;
+  return /[A-Za-z]/.test(text) && /\d/.test(text);
+}
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0].trim();
+  }
+  return req.ip || req.connection?.remoteAddress || "";
+}
+
+function consumeAdminRateLimit(ip) {
+  const now = Date.now();
+  let entry = adminLoginAttemptsByIp.get(ip);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + ADMIN_LOGIN_RATE_LIMIT.windowMs };
+  }
+  entry.count += 1;
+  adminLoginAttemptsByIp.set(ip, entry);
+  return entry;
+}
+
+function isAdminRateLimited(ip) {
+  const entry = adminLoginAttemptsByIp.get(ip);
+  if (!entry) return false;
+  if (Date.now() > entry.resetAt) {
+    adminLoginAttemptsByIp.delete(ip);
+    return false;
+  }
+  return entry.count > ADMIN_LOGIN_RATE_LIMIT.max;
+}
+
+async function getAdminFromSession(token) {
+  if (!token) return null;
+  const sessionHash = hashToken(token);
+  const { rows } = await adminQuery(
+    `SELECT a.*, s.csrf_token\n     FROM admin_sessions s\n     JOIN admin_accounts a ON a.id = s.admin_id\n     WHERE s.session_hash = $1 AND s.expires_at > now() AND a.is_active = true\n     LIMIT 1`,
+    [sessionHash]
+  );
+  return rows[0] || null;
+}
+
+async function createAdminSession(adminId) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const sessionHash = hashToken(token);
+  const csrfToken = crypto.randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
+  await adminQuery(
+    "INSERT INTO admin_sessions (session_hash, csrf_token, admin_id, expires_at) VALUES ($1,$2,$3,$4)",
+    [sessionHash, csrfToken, adminId, expiresAt.toISOString()]
+  );
+  return { token, csrfToken, expiresAt };
+}
+
+function requireAdmin(minRole = "reader") {
+  return async (req, res, next) => {
+    const token = req.cookies && req.cookies.mtm_admin_session;
+    const adminUser = await getAdminFromSession(token);
+    if (adminUser && roleRank[adminUser.role] >= roleRank[minRole]) {
+      req.admin = adminUser;
+      req.adminSession = { csrf_token: adminUser.csrf_token };
+      res.locals.adminRole = adminUser.role;
+      res.locals.adminEmail = adminUser.email;
+      res.locals.adminCsrf = adminUser.csrf_token;
+      return next();
+    }
+
+    if (token) {
+      res.clearCookie("mtm_admin_session", { path: "/admin" });
+    }
+    return res.redirect(`/admin/login?next=${encodeURIComponent(req.originalUrl || "/admin")}`);
+  };
+}
+
+function requireAdminCsrf(req, res, next) {
+  const token = req.body && req.body.csrf_token;
+  if (!token || token !== res.locals.adminCsrf) {
+    return res.status(403).send("CSRF token inválido.");
+  }
+  return next();
+}
+
+async function logAudit(actorAdminId, action, entityType, entityId, metadata = {}) {
+  try {
+    await adminQuery(
+      "INSERT INTO audit_logs (actor_admin_id, action, entity_type, entity_id, metadata) VALUES ($1,$2,$3,$4,$5)",
+      [actorAdminId || null, action, entityType || null, entityId || null, metadata]
+    );
+  } catch (err) {
+    console.error("Audit log failed:", err && err.message ? err.message : err);
+  }
+}
+
+function buildProfileFilters(query) {
+  const where = [];
+  const params = [];
+  let idx = 1;
+  if (query.provider && query.provider !== "all") {
+    where.push(`provider = $${idx++}`);
+    params.push(query.provider);
+  }
+  if (query.status === "active") {
+    where.push(`is_active = true`);
+  } else if (query.status === "inactive") {
+    where.push(`is_active = false`);
+  }
+  if (query.from) {
+    where.push(`created_at >= $${idx++}`);
+    params.push(query.from);
+  }
+  if (query.to) {
+    where.push(`created_at <= $${idx++}`);
+    params.push(query.to);
+  }
+  if (query.q) {
+    where.push(`(name ILIKE $${idx} OR email ILIKE $${idx} OR company ILIKE $${idx})`);
+    params.push(`%${query.q}%`);
+    idx += 1;
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return { clause, params };
+}
+
+async function ensureBootstrapAdmin() {
+  if (!ADMIN_BOOTSTRAP_USERNAME || !ADMIN_BOOTSTRAP_PASSWORD) return;
+  if (!isStrongPassword(ADMIN_BOOTSTRAP_PASSWORD)) {
+    console.warn("Bootstrap admin password fraca. Use 12+ caracteres com letras e números.");
+    return;
+  }
+  try {
+    const { rows } = await adminQuery("SELECT COUNT(*)::int AS count FROM admin_accounts");
+    if (rows[0] && rows[0].count > 0) return;
+    const hash = await bcrypt.hash(ADMIN_BOOTSTRAP_PASSWORD, 10);
+    await adminQuery(
+      "INSERT INTO admin_accounts (username, email, password_hash, role, is_active) VALUES ($1,$2,$3,$4,true)",
+      [ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_EMAIL || null, hash, "super_admin"]
+    );
+    console.log("Bootstrap admin created for", ADMIN_BOOTSTRAP_USERNAME);
+  } catch (err) {
+    console.error("Bootstrap admin failed:", err && err.message ? err.message : err);
+  }
 }
 
 function requireUserAuth(req, res, next) {
@@ -234,36 +421,293 @@ app.get("/nao-sabe", requireUserAuth, (req, res) => {
   });
 });
 
-app.get("/admin", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.render("admin_login", { error: null });
+app.get("/admin/login", asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_admin_session;
+  const adminUser = await getAdminFromSession(token);
+  if (adminUser) return res.redirect("/admin");
+  if (token) {
+    res.clearCookie("mtm_admin_session", { path: "/admin" });
+  }
+  res.render("admin_login", { error: null, next: req.query.next || "" });
+}));
+
+app.post("/admin/login", asyncHandler(async (req, res) => {
+  const username = String(req.body.username || "").trim();
+  const password = String(req.body.password || "");
+  if (!username || !password) {
+    return res.render("admin_login", { error: "Não foi possível entrar. Verifique os dados.", next: req.body.next || "" });
+  }
+  const ip = getClientIp(req);
+  const rateEntry = consumeAdminRateLimit(ip);
+  if (rateEntry.count > ADMIN_LOGIN_RATE_LIMIT.max) {
+    return res.status(429).render("admin_login", { error: "Muitas tentativas. Aguarde alguns minutos.", next: req.body.next || "" });
+  }
+  const { rows } = await adminQuery(
+    "SELECT * FROM admin_accounts WHERE username = $1 LIMIT 1",
+    [username]
+  );
+  const admin = rows[0];
+  if (!admin || !admin.is_active) {
+    await logAudit(null, "admin_login_failed", "admin_accounts", username, { ip, reason: "not_found_or_inactive" });
+    return res.render("admin_login", { error: "Não foi possível entrar. Verifique os dados.", next: req.body.next || "" });
+  }
+  if (admin.locked_until && new Date(admin.locked_until) > new Date()) {
+    await logAudit(admin.id, "admin_login_failed", "admin_accounts", admin.id, { ip, reason: "locked" });
+    return res.render("admin_login", { error: "Não foi possível entrar. Tente novamente em alguns minutos.", next: req.body.next || "" });
+  }
+  const ok = await bcrypt.compare(password, admin.password_hash);
+  if (!ok) {
+    const failedCount = Number(admin.failed_login_count || 0) + 1;
+    let lockedUntil = null;
+    if (failedCount >= 5) {
+      lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      await logAudit(admin.id, "admin_lockout_triggered", "admin_accounts", admin.id, { ip, failedCount });
+    }
+    await adminQuery(
+      "UPDATE admin_accounts SET failed_login_count = $1, last_failed_login_at = now(), locked_until = $2 WHERE id = $3",
+      [failedCount, lockedUntil ? lockedUntil.toISOString() : null, admin.id]
+    );
+    await logAudit(admin.id, "admin_login_failed", "admin_accounts", admin.id, { ip, reason: "bad_password" });
+    return res.render("admin_login", { error: "Não foi possível entrar. Verifique os dados.", next: req.body.next || "" });
+  }
+  await adminQuery(
+    "UPDATE admin_accounts SET failed_login_count = 0, locked_until = NULL, last_failed_login_at = NULL WHERE id = $1",
+    [admin.id]
+  );
+  adminLoginAttemptsByIp.delete(ip);
+  const session = await createAdminSession(admin.id);
+  res.cookie("mtm_admin_session", session.token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/admin",
+    maxAge: session.expiresAt.getTime() - Date.now()
+  });
+  await logAudit(admin.id, "admin_login_success", "admin_accounts", admin.id, { ip });
+  const nextUrl = req.body.next || "/admin";
+  res.redirect(nextUrl);
+}));
+
+app.post("/admin/logout", requireAdmin("reader"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_admin_session;
+  if (token) {
+    const sessionHash = hashToken(token);
+    await adminQuery("DELETE FROM admin_sessions WHERE session_hash = $1", [sessionHash]);
+  }
+  await logAudit(req.admin && req.admin.id, "admin_logout", "admin_accounts", req.admin && req.admin.id);
+  res.clearCookie("mtm_admin_session", { path: "/admin" });
+  res.redirect("/admin/login");
+}));
+
+app.get("/admin", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const posts = await getPosts();
   const pendingComments = await getPendingComments();
   const approvedComments = await getApprovedComments();
   res.render("admin", { posts, pendingComments, approvedComments });
 }));
 
-app.get("/admin/posts/:id/edit", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.get("/admin/posts/:id/edit", requireAdmin("editor"), asyncHandler(async (req, res) => {
   const post = await getPostById(req.params.id);
   if (!post) return res.status(404).render("404");
   res.render("admin_edit", { post });
 }));
 
-app.post("/admin/login", (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) {
-    res.cookie("mtm_admin", "1", { httpOnly: true });
-    return res.redirect("/admin");
+app.get("/admin/users", requireAdmin("admin"), asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery("SELECT * FROM admin_accounts ORDER BY created_at DESC");
+  res.render("admin_users", { admins: rows || [] });
+}));
+
+app.post("/admin/users", requireAdmin("admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const username = String(req.body.username || "").trim();
+  const email = String(req.body.email || "").trim();
+  const role = String(req.body.role || "reader").trim();
+  const password = String(req.body.password || "");
+  if (!username || !password) {
+    return res.redirect("/admin/users");
   }
-  res.render("admin_login", { error: "Senha inválida." });
-});
+  if (!roleRank[role]) return res.redirect("/admin/users");
+  const hash = await bcrypt.hash(password, 10);
+  await adminQuery(
+    "INSERT INTO admin_accounts (username, email, password_hash, role, is_active) VALUES ($1,$2,$3,$4,true)",
+    [username, email || null, hash, role]
+  );
+  await logAudit(req.admin && req.admin.id, "create_admin", "admin_accounts", username, { role });
+  res.redirect("/admin/users");
+}));
 
-app.post("/admin/logout", (req, res) => {
-  res.clearCookie("mtm_admin");
-  res.redirect("/admin");
-});
+app.post("/admin/users/:id", requireAdmin("admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const role = String(req.body.role || "").trim();
+  const isActive = req.body.is_active === "true";
+  const password = String(req.body.password || "");
+  const updates = [];
+  const params = [];
+  let idx = 1;
+  if (role && roleRank[role]) {
+    updates.push(`role = $${idx++}`);
+    params.push(role);
+  }
+  updates.push(`is_active = $${idx++}`);
+  params.push(isActive);
+  if (password) {
+    const hash = await bcrypt.hash(password, 10);
+    updates.push(`password_hash = $${idx++}`);
+    params.push(hash);
+  }
+  updates.push(`updated_at = now()`);
+  params.push(req.params.id);
+  if (updates.length > 0) {
+    await adminQuery(`UPDATE admin_accounts SET ${updates.join(", ")} WHERE id = $${idx}`, params);
+  }
+  if (!isActive) {
+    await adminQuery("DELETE FROM admin_sessions WHERE admin_id = $1", [req.params.id]);
+    await logAudit(req.admin && req.admin.id, "admin_session_revoked", "admin_accounts", req.params.id, { reason: "deactivated" });
+  }
+  await logAudit(req.admin && req.admin.id, "update_admin", "admin_accounts", req.params.id, { role, isActive });
+  res.redirect("/admin/users");
+}));
 
-app.post("/admin/posts", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/users/:id/delete", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  await adminQuery("DELETE FROM admin_sessions WHERE admin_id = $1", [req.params.id]);
+  await logAudit(req.admin && req.admin.id, "admin_session_revoked", "admin_accounts", req.params.id, { reason: "deleted" });
+  await adminQuery("DELETE FROM admin_accounts WHERE id = $1", [req.params.id]);
+  await logAudit(req.admin && req.admin.id, "delete_admin", "admin_accounts", req.params.id);
+  res.redirect("/admin/users");
+}));
+
+app.get("/admin/profiles", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const perPage = 25;
+  const offset = (page - 1) * perPage;
+  const filters = {
+    provider: req.query.provider || "all",
+    status: req.query.status || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildProfileFilters(filters);
+  const countResult = await adminQuery(
+    `SELECT COUNT(*)::int AS count FROM profiles ${clause}`,
+    params
+  );
+  const total = countResult.rows[0]?.count || 0;
+  const rowsResult = await adminQuery(
+    `SELECT id, email, name, company, phone, provider, is_active, created_at, updated_at
+     FROM profiles
+     ${clause}
+     ORDER BY created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, perPage, offset]
+  );
+  res.render("admin_profiles", {
+    profiles: rowsResult.rows || [],
+    filters,
+    page,
+    total,
+    perPage
+  });
+}));
+
+app.get("/admin/profiles/export.csv", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    provider: req.query.provider || "all",
+    status: req.query.status || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildProfileFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, company, phone, provider, is_active, created_at, updated_at
+     FROM profiles
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  const header = ["id", "name", "email", "company", "phone", "provider", "is_active", "created_at", "updated_at"];
+  const lines = [header.join(",")];
+  rowsResult.rows.forEach((row) => {
+    const values = header.map((key) => {
+      const value = row[key] === null || row[key] === undefined ? "" : String(row[key]);
+      const escaped = value.replace(/"/g, '""');
+      return `"${escaped}"`;
+    });
+    lines.push(values.join(","));
+  });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=profiles.csv");
+  res.send(lines.join("\n"));
+}));
+
+app.get("/admin/profiles/export.json", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    provider: req.query.provider || "all",
+    status: req.query.status || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildProfileFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, company, phone, provider, is_active, created_at, updated_at
+     FROM profiles
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  res.json(rowsResult.rows || []);
+}));
+
+app.get("/admin/profiles/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery(
+    "SELECT id, email, name, company, phone, provider, is_active, deleted_at, created_at, updated_at FROM profiles WHERE id = $1 LIMIT 1",
+    [req.params.id]
+  );
+  const profile = rows[0];
+  if (!profile) return res.status(404).render("404");
+  await logAudit(req.admin && req.admin.id, "profile_viewed", "profiles", req.params.id, {});
+  res.render("admin_profile_view", { profile });
+}));
+
+app.post("/admin/profiles/:id/update", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const name = String(req.body.name || "").trim().slice(0, 120);
+  const company = String(req.body.company || "").trim().slice(0, 120);
+  const phone = String(req.body.phone || "").trim().slice(0, 40);
+  const { rows } = await adminQuery(
+    "UPDATE profiles SET name = $1, company = $2, phone = $3, updated_at = now() WHERE id = $4 RETURNING id, email, name, company, phone, provider, is_active, deleted_at, created_at, updated_at",
+    [name, company, phone, req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, "profile_updated", "profiles", req.params.id, { name, company, phone });
+  const profile = rows[0];
+  if (!profile) return res.status(404).render("404");
+  res.render("admin_profile_view", { profile, saved: true });
+}));
+
+app.post("/admin/profiles/:id/deactivate", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  await adminQuery(
+    "UPDATE profiles SET is_active = false, deleted_at = now(), updated_at = now() WHERE id = $1",
+    [req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, "profile_deactivated", "profiles", req.params.id, {});
+  res.redirect(`/admin/profiles/${req.params.id}`);
+}));
+
+app.post("/admin/profiles/:id/reactivate", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  await adminQuery(
+    "UPDATE profiles SET is_active = true, deleted_at = NULL, updated_at = now() WHERE id = $1",
+    [req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, "profile_reactivated", "profiles", req.params.id, {});
+  res.redirect(`/admin/profiles/${req.params.id}`);
+}));
+
+app.post("/admin/profiles/:id/delete", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  await adminQuery("DELETE FROM profiles WHERE id = $1", [req.params.id]);
+  await logAudit(req.admin && req.admin.id, "profile_deleted", "profiles", req.params.id, {});
+  res.redirect("/admin/profiles");
+}));
+
+app.post("/admin/posts", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
   if (!title || !excerpt || !content || !category) {
     return res.status(400).send("Campos obrigatórios ausentes.");
@@ -290,8 +734,7 @@ app.post("/admin/posts", asyncHandler(async (req, res) => {
   res.redirect("/admin");
 }));
 
-app.post("/admin/posts/:id", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/posts/:id", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   const { title, slug, excerpt, content, tags, category, read_time, video_url, video_orientation, image_url: imageUrlInput } = req.body;
   const removeImage = req.body.remove_image === "1";
   if (!title || !excerpt || !content || !category) {
@@ -322,8 +765,7 @@ app.post("/admin/posts/:id", asyncHandler(async (req, res) => {
   res.redirect("/admin");
 }));
 
-app.post("/admin/posts/:id/delete", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/posts/:id/delete", requireAdmin("admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
   await deletePost(req.params.id);
   res.redirect("/admin");
 }));
@@ -360,28 +802,24 @@ app.post("/blog/:slug/comments", asyncHandler(async (req, res) => {
   res.redirect(`/blog/${req.params.slug}#comentarios`);
 }));
 
-app.post("/admin/comments/:id/approve", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/comments/:id/approve", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   await updateComment(req.params.id, { status: "approved" });
   res.redirect("/admin");
 }));
 
-app.post("/admin/comments/:id/delete", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/comments/:id/delete", requireAdmin("admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
   await deleteComment(req.params.id);
   res.redirect("/admin");
 }));
 
-app.post("/admin/comments/:id/update", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/comments/:id/update", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   const { message } = req.body;
   if (!message || !String(message).trim()) return res.redirect("/admin");
   await updateComment(req.params.id, { message: String(message).trim() });
   res.redirect("/admin");
 }));
 
-app.post("/admin/comments/:id/reply", asyncHandler(async (req, res) => {
-  if (!isAuthed(req)) return res.status(401).send("Não autorizado");
+app.post("/admin/comments/:id/reply", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   const { message, post_slug } = req.body;
   if (!message || !post_slug || !String(message).trim()) return res.redirect("/admin");
   await insertComment({
