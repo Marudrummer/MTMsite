@@ -26,10 +26,56 @@
     return stored || "/";
   }
 
+  async function upsertProfileIfMissing(user) {
+    if (!user) return;
+    const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
+    const provider = rawProvider === "email" ? "magiclink" : rawProvider;
+    const pendingRaw = localStorage.getItem("mtm_pending_profile");
+    let pending = null;
+    if (pendingRaw) {
+      try {
+        pending = JSON.parse(pendingRaw);
+      } catch (err) {
+        pending = null;
+      }
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("profiles")
+      .select("id, name, company, phone")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingError && existing && existing.id) {
+      return;
+    }
+
+    const nameFallback =
+      (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) ||
+      (user.email ? user.email.split("@")[0] : "");
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+      name: pending && pending.name ? pending.name : nameFallback,
+      company: pending && pending.company ? pending.company : "",
+      phone: pending && pending.phone ? pending.phone : "",
+      provider,
+      updated_at: new Date().toISOString()
+    };
+
+    await supabase.from("profiles").upsert(payload, { onConflict: "id" });
+    if (pending && pending.email && pending.email === user.email) {
+      localStorage.removeItem("mtm_pending_profile");
+    }
+  }
+
   async function ensureProfile() {
     const { data: userData } = await supabase.auth.getUser();
     const user = userData && userData.user;
     if (!user) return;
+
+    await upsertProfileIfMissing(user);
 
     const onLogin = window.location.pathname === "/login";
     const nextTarget = getNextTarget();
@@ -188,46 +234,7 @@
       const { data: userData } = await supabase.auth.getUser();
       const user = userData && userData.user;
       if (user) {
-        const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
-        const provider = rawProvider === "email" ? "magiclink" : rawProvider;
-        const pendingRaw = localStorage.getItem(pendingKey);
-        if (pendingRaw) {
-          try {
-            const pending = JSON.parse(pendingRaw);
-            if (pending && pending.email && pending.email === user.email) {
-              const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
-              const provider = rawProvider === "email" ? "magiclink" : rawProvider;
-              await supabase.from("profiles").upsert(
-                {
-                  id: user.id,
-                  email: user.email,
-                  name: pending.name,
-                  company: pending.company,
-                  phone: pending.phone,
-                  provider,
-                  updated_at: pending.updated_at || new Date().toISOString()
-                },
-                { onConflict: "id" }
-              );
-              localStorage.removeItem(pendingKey);
-            }
-          } catch (err) {
-            localStorage.removeItem(pendingKey);
-          }
-        } else {
-          await supabase.from("profiles").upsert(
-            {
-              id: user.id,
-              email: user.email,
-              name: user.user_metadata && user.user_metadata.full_name ? user.user_metadata.full_name : "",
-              company: "",
-              phone: "",
-              provider,
-              updated_at: new Date().toISOString()
-            },
-            { onConflict: "id" }
-          );
-        }
+        await upsertProfileIfMissing(user);
       }
       ensureProfile();
     });

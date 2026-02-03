@@ -333,7 +333,11 @@ function requireAdmin(minRole = "reader") {
 function requireAdminCsrf(req, res, next) {
   const token = req.body && req.body.csrf_token;
   if (!token || token !== res.locals.adminCsrf) {
-    return res.status(403).send("CSRF token inválido.");
+    res.clearCookie("mtm_admin_session", { path: "/admin" });
+    return res.status(403).render("admin_login", {
+      error: "Sessão expirada. Faça login novamente.",
+      next: req.originalUrl || "/admin"
+    });
   }
   return next();
 }
