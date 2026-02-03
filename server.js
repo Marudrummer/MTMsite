@@ -840,7 +840,7 @@ app.get("/admin/materials/new", requireAdmin("editor"), asyncHandler(async (req,
   res.render("admin_material_new");
 }));
 
-app.post("/admin/materials", requireAdmin("editor"), requireAdminCsrf, upload.single("file"), asyncHandler(async (req, res) => {
+app.post("/admin/materials", requireAdmin("editor"), upload.single("file"), requireAdminCsrf, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const file = req.file;
   const title = String(req.body.title || "").trim();
@@ -894,7 +894,7 @@ app.post("/admin/materials/:id/update", requireAdmin("editor"), requireAdminCsrf
   res.redirect(`/admin/materials/${req.params.id}`);
 }));
 
-app.post("/admin/materials/:id/replace", requireAdmin("editor"), requireAdminCsrf, upload.single("file"), asyncHandler(async (req, res) => {
+app.post("/admin/materials/:id/replace", requireAdmin("editor"), upload.single("file"), requireAdminCsrf, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const file = req.file;
   if (!file) return res.status(400).send("Arquivo obrigatório.");
