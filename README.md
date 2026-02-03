@@ -95,6 +95,7 @@ Exportação:
 
 ## Materiais (Storage)
 1) Execute `db/materials_schema.sql` no Supabase SQL Editor.
+   - Se já executou antes, rode também `db/materials_schedule_patch.sql` para adicionar agendamento.
 2) Crie o bucket `materials` no Supabase Storage.
 3) Configure `SUPABASE_SERVICE_ROLE_KEY` na Vercel (somente server).
 4) Acesse `/admin/materials` para enviar e publicar arquivos.

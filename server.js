@@ -256,6 +256,13 @@ function isStrongPassword(value) {
   return /[A-Za-z]/.test(text) && /\d/.test(text);
 }
 
+function parsePublishAt(input) {
+  if (!input) return null;
+  const dt = new Date(input);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
 function getClientIp(req) {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.trim()) {
@@ -422,7 +429,10 @@ app.get("/sobre", (req, res) => res.render("sobre"));
 app.get("/servicos", (req, res) => res.render("servicos"));
 app.get("/materiais", requireUserAuth, asyncHandler(async (req, res) => {
   const { rows } = await adminQuery(
-    "SELECT id, title, description, tags, filename, size_bytes, created_at FROM materials WHERE is_published = true ORDER BY created_at DESC"
+    `SELECT id, title, description, tags, filename, size_bytes, created_at
+     FROM materials
+     WHERE is_published = true OR (publish_at IS NOT NULL AND publish_at <= now())
+     ORDER BY created_at DESC`
   );
   res.render("materiais", { materials: rows || [] });
 }));
@@ -430,7 +440,9 @@ app.get("/materiais", requireUserAuth, asyncHandler(async (req, res) => {
 app.get("/materiais/:id/download", requireUserAuth, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const { rows } = await adminQuery(
-    "SELECT * FROM materials WHERE id = $1 AND is_published = true LIMIT 1",
+    `SELECT * FROM materials
+     WHERE id = $1 AND (is_published = true OR (publish_at IS NOT NULL AND publish_at <= now()))
+     LIMIT 1`,
     [req.params.id]
   );
   const material = rows[0];
@@ -840,6 +852,24 @@ app.get("/admin/materials/new", requireAdmin("editor"), asyncHandler(async (req,
   res.render("admin_material_new");
 }));
 
+app.post("/admin/materials/upload-url", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: "Storage não configurado." });
+  const filename = String(req.body.filename || "").trim();
+  const contentType = String(req.body.content_type || "").trim();
+  if (!filename || !contentType) return res.status(400).json({ error: "Arquivo inválido." });
+  const ext = safeFilename(filename);
+  const now = new Date();
+  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+  const { data, error } = await supabaseAdmin.storage
+    .from(MATERIALS_BUCKET)
+    .createSignedUploadUrl(storagePath);
+  if (error || !data?.signedUrl) {
+    return res.status(500).json({ error: "Falha ao gerar URL de upload." });
+  }
+  res.json({ signedUrl: data.signedUrl, storagePath });
+}));
+
 app.post("/admin/materials", requireAdmin("editor"), upload.single("file"), requireAdminCsrf, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const file = req.file;
@@ -847,27 +877,41 @@ app.post("/admin/materials", requireAdmin("editor"), upload.single("file"), requ
   const description = String(req.body.description || "").trim();
   const tagsRaw = String(req.body.tags || "").trim();
   const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean) : [];
-  const isPublished = req.body.is_published === "true";
-  if (!file || !title) return res.status(400).send("Arquivo e título são obrigatórios.");
+  const publishMode = String(req.body.publish_mode || "publish").trim();
+  const publishAtInput = String(req.body.publish_at || "").trim();
+  const publishAt = publishMode === "schedule" ? parsePublishAt(publishAtInput) : null;
+  const isPublished = publishAt ? false : true;
+  if (!title) return res.status(400).send("Título é obrigatório.");
 
-  const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
-  if (!allowed.includes(file.mimetype)) {
-    return res.status(400).send("Tipo de arquivo não permitido.");
+  let storagePath = String(req.body.storage_path || "").trim();
+  let filename = String(req.body.filename || "").trim();
+  let contentType = String(req.body.content_type || "").trim();
+  let sizeBytes = Number(req.body.size_bytes || 0);
+
+  if (file) {
+    const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
+    if (!allowed.includes(file.mimetype)) {
+      return res.status(400).send("Tipo de arquivo não permitido.");
+    }
+    const ext = safeFilename(file.originalname);
+    const now = new Date();
+    const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+    storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(MATERIALS_BUCKET)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+    if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+    filename = file.originalname;
+    contentType = file.mimetype;
+    sizeBytes = file.size;
   }
 
-  const ext = safeFilename(file.originalname);
-  const now = new Date();
-  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from(MATERIALS_BUCKET)
-    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
-  if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+  if (!storagePath) return res.status(400).send("Arquivo é obrigatório.");
 
   await adminQuery(
-    `INSERT INTO materials (title, description, tags, storage_bucket, storage_path, filename, content_type, size_bytes, is_published)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [title, description, JSON.stringify(tags), MATERIALS_BUCKET, storagePath, file.originalname, file.mimetype, file.size, isPublished]
+    `INSERT INTO materials (title, description, tags, storage_bucket, storage_path, filename, content_type, size_bytes, is_published, publish_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [title, description, JSON.stringify(tags), MATERIALS_BUCKET, storagePath, filename, contentType, sizeBytes, isPublished, publishAt]
   );
   await logAudit(req.admin && req.admin.id, "material_created", "materials", storagePath, { title, is_published: isPublished });
   res.redirect("/admin/materials");
@@ -885,36 +929,69 @@ app.post("/admin/materials/:id/update", requireAdmin("editor"), requireAdminCsrf
   const description = String(req.body.description || "").trim();
   const tagsRaw = String(req.body.tags || "").trim();
   const tags = tagsRaw ? tagsRaw.split(",").map(t => t.trim()).filter(Boolean) : [];
-  const isPublished = req.body.is_published === "true";
+  const publishMode = String(req.body.publish_mode || "publish").trim();
+  const publishAtInput = String(req.body.publish_at || "").trim();
+  const publishAt = publishMode === "schedule" ? parsePublishAt(publishAtInput) : null;
+  const isPublished = publishAt ? false : true;
   await adminQuery(
-    "UPDATE materials SET title=$1, description=$2, tags=$3, is_published=$4, updated_at=now() WHERE id=$5",
-    [title, description, JSON.stringify(tags), isPublished, req.params.id]
+    "UPDATE materials SET title=$1, description=$2, tags=$3, is_published=$4, publish_at=$5, updated_at=now() WHERE id=$6",
+    [title, description, JSON.stringify(tags), isPublished, publishAt, req.params.id]
   );
   await logAudit(req.admin && req.admin.id, isPublished ? "material_published" : "material_unpublished", "materials", req.params.id, { title });
   res.redirect(`/admin/materials/${req.params.id}`);
 }));
 
+app.post("/admin/materials/:id/replace-url", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) return res.status(500).json({ error: "Storage não configurado." });
+  const filename = String(req.body.filename || "").trim();
+  const contentType = String(req.body.content_type || "").trim();
+  if (!filename || !contentType) return res.status(400).json({ error: "Arquivo inválido." });
+  const { rows } = await adminQuery("SELECT id FROM materials WHERE id = $1", [req.params.id]);
+  if (!rows[0]) return res.status(404).json({ error: "Material não encontrado." });
+  const ext = safeFilename(filename);
+  const now = new Date();
+  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+  const { data, error } = await supabaseAdmin.storage
+    .from(MATERIALS_BUCKET)
+    .createSignedUploadUrl(storagePath);
+  if (error || !data?.signedUrl) {
+    return res.status(500).json({ error: "Falha ao gerar URL de upload." });
+  }
+  res.json({ signedUrl: data.signedUrl, storagePath });
+}));
+
 app.post("/admin/materials/:id/replace", requireAdmin("editor"), upload.single("file"), requireAdminCsrf, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const file = req.file;
-  if (!file) return res.status(400).send("Arquivo obrigatório.");
   const { rows } = await adminQuery("SELECT * FROM materials WHERE id = $1", [req.params.id]);
   const material = rows[0];
   if (!material) return res.status(404).render("404");
 
-  const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
-  if (!allowed.includes(file.mimetype)) {
-    return res.status(400).send("Tipo de arquivo não permitido.");
+  let storagePath = String(req.body.storage_path || "").trim();
+  let filename = String(req.body.filename || "").trim();
+  let contentType = String(req.body.content_type || "").trim();
+  let sizeBytes = Number(req.body.size_bytes || 0);
+
+  if (file) {
+    const allowed = ["application/pdf", "application/zip", "image/png", "image/jpeg", "video/mp4"];
+    if (!allowed.includes(file.mimetype)) {
+      return res.status(400).send("Tipo de arquivo não permitido.");
+    }
+    const ext = safeFilename(file.originalname);
+    const now = new Date();
+    const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
+    storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(MATERIALS_BUCKET)
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
+    if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+    filename = file.originalname;
+    contentType = file.mimetype;
+    sizeBytes = file.size;
   }
 
-  const ext = safeFilename(file.originalname);
-  const now = new Date();
-  const folder = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const storagePath = `${folder}/${crypto.randomUUID()}-${ext}`;
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from(MATERIALS_BUCKET)
-    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: false });
-  if (uploadError) return res.status(500).send("Falha ao enviar arquivo.");
+  if (!storagePath) return res.status(400).send("Arquivo obrigatório.");
 
   if (material.storage_path) {
     await supabaseAdmin.storage.from(MATERIALS_BUCKET).remove([material.storage_path]);
@@ -922,7 +999,7 @@ app.post("/admin/materials/:id/replace", requireAdmin("editor"), upload.single("
 
   await adminQuery(
     "UPDATE materials SET storage_path=$1, filename=$2, content_type=$3, size_bytes=$4, updated_at=now() WHERE id=$5",
-    [storagePath, file.originalname, file.mimetype, file.size, req.params.id]
+    [storagePath, filename, contentType, sizeBytes, req.params.id]
   );
   await logAudit(req.admin && req.admin.id, "material_file_replaced", "materials", req.params.id, { storage_path: storagePath });
   res.redirect(`/admin/materials/${req.params.id}`);

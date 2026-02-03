@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS materials (
   content_type text,
   size_bytes bigint,
   is_published boolean NOT NULL DEFAULT false,
+  publish_at timestamptz,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_materials_published ON materials(is_published);
+CREATE INDEX IF NOT EXISTS idx_materials_publish_at ON materials(publish_at);
 CREATE INDEX IF NOT EXISTS idx_materials_created_at ON materials(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS material_downloads (

@@ -29,26 +29,40 @@
           <input name="tags" value="<%= (material.tags || []).join(', ') %>" />
         </label>
         <label>
-          <select name="is_published">
-            <option value="false" <%= material.is_published ? '' : 'selected' %>>Rascunho</option>
-            <option value="true" <%= material.is_published ? 'selected' : '' %>>Publicado</option>
+          <select name="publish_mode">
+            <option value="publish" <%= material.publish_at ? '' : 'selected' %>>Publicar agora</option>
+            <option value="schedule" <%= material.publish_at ? 'selected' : '' %>>Agendar publicação</option>
           </select>
+        </label>
+        <label>Agendar (opcional)
+          <input type="datetime-local" name="publish_at" value="<%= material.publish_at ? new Date(material.publish_at).toISOString().slice(0,16) : '' %>" />
         </label>
         <button class="btn primary" type="submit">Salvar alterações</button>
       </form>
 
-      <form class="card form" action="/admin/materials/<%= material.id %>/replace" method="post" enctype="multipart/form-data">
+      <form class="card form" action="/admin/materials/<%= material.id %>/replace" method="post" enctype="multipart/form-data" data-upload-form data-upload-url="/admin/materials/<%= material.id %>/replace-url">
         <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+        <input type="hidden" name="storage_path" />
+        <input type="hidden" name="content_type" />
+        <input type="hidden" name="size_bytes" />
+        <input type="hidden" name="filename" />
         <label>Substituir arquivo
           <input type="file" name="file" required />
         </label>
+        <p class="muted" data-upload-status></p>
         <button class="btn" type="submit">Enviar novo arquivo</button>
       </form>
     <% } %>
 
     <div class="card">
       <h3>Status</h3>
-      <p class="muted"><%= material.is_published ? 'Publicado' : 'Rascunho' %></p>
+      <p class="muted">
+        <% if (material.publish_at) { %>
+          Agendado para <%= new Date(material.publish_at).toISOString().split('T')[0] %>
+        <% } else { %>
+          <%= material.is_published ? 'Publicado' : 'Rascunho' %>
+        <% } %>
+      </p>
       <% if (adminRole === 'super_admin') { %>
         <form action="/admin/materials/<%= material.id %>/delete" method="post">
           <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
@@ -59,3 +73,49 @@
   </div>
 </section>
 <%- include('partials_footer') %>
+
+<script>
+  (function () {
+    const forms = document.querySelectorAll("[data-upload-form]");
+    forms.forEach((form) => {
+      const fileInput = form.querySelector("input[type='file']");
+      const statusEl = form.querySelector("[data-upload-status]");
+      form.addEventListener("submit", async (e) => {
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+        e.preventDefault();
+        const file = fileInput.files[0];
+        if (statusEl) statusEl.textContent = "Enviando arquivo...";
+        try {
+          const csrf = form.querySelector("input[name='csrf_token']").value;
+          const res = await fetch(form.getAttribute("data-upload-url"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: file.name, content_type: file.type, csrf_token: csrf })
+          });
+          const payload = await res.json();
+          if (!res.ok || !payload.signedUrl) {
+            throw new Error(payload.error || "Falha ao gerar URL de upload.");
+          }
+          const uploadRes = await fetch(payload.signedUrl, {
+            method: "PUT",
+            headers: { "Content-Type": file.type },
+            body: file
+          });
+          if (!uploadRes.ok) {
+            throw new Error("Falha ao enviar arquivo.");
+          }
+          form.querySelector("input[name='storage_path']").value = payload.storagePath;
+          form.querySelector("input[name='content_type']").value = file.type;
+          form.querySelector("input[name='size_bytes']").value = String(file.size || 0);
+          form.querySelector("input[name='filename']").value = file.name;
+          fileInput.name = "";
+          fileInput.value = "";
+          if (statusEl) statusEl.textContent = "Arquivo enviado. Salvando...";
+          form.submit();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = err.message || "Erro no upload.";
+        }
+      });
+    });
+  })();
+</script>

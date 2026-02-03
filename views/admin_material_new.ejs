@@ -12,8 +12,12 @@
       </div>
     </div>
 
-    <form class="card form" action="/admin/materials" method="post" enctype="multipart/form-data">
+    <form class="card form" action="/admin/materials" method="post" enctype="multipart/form-data" data-upload-form data-upload-url="/admin/materials/upload-url">
       <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+      <input type="hidden" name="storage_path" />
+      <input type="hidden" name="content_type" />
+      <input type="hidden" name="size_bytes" />
+      <input type="hidden" name="filename" />
       <label>Título
         <input name="title" required />
       </label>
@@ -27,13 +31,62 @@
         <input type="file" name="file" required />
       </label>
       <label>
-        <select name="is_published">
-          <option value="false">Salvar como rascunho</option>
-          <option value="true">Publicar agora</option>
+        <select name="publish_mode">
+          <option value="publish">Publicar agora</option>
+          <option value="schedule">Agendar publicação</option>
         </select>
       </label>
+      <label>Agendar (opcional)
+        <input type="datetime-local" name="publish_at" />
+      </label>
+      <p class="muted" data-upload-status></p>
       <button class="btn primary" type="submit">Salvar material</button>
     </form>
   </div>
 </section>
 <%- include('partials_footer') %>
+
+<script>
+  (function () {
+    const form = document.querySelector("[data-upload-form]");
+    if (!form) return;
+    const fileInput = form.querySelector("input[type='file']");
+    const statusEl = form.querySelector("[data-upload-status]");
+    form.addEventListener("submit", async (e) => {
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (statusEl) statusEl.textContent = "Enviando arquivo...";
+      try {
+        const csrf = form.querySelector("input[name='csrf_token']").value;
+        const res = await fetch(form.getAttribute("data-upload-url"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name, content_type: file.type, csrf_token: csrf })
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.signedUrl) {
+          throw new Error(payload.error || "Falha ao gerar URL de upload.");
+        }
+        const uploadRes = await fetch(payload.signedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file
+        });
+        if (!uploadRes.ok) {
+          throw new Error("Falha ao enviar arquivo.");
+        }
+        form.querySelector("input[name='storage_path']").value = payload.storagePath;
+        form.querySelector("input[name='content_type']").value = file.type;
+        form.querySelector("input[name='size_bytes']").value = String(file.size || 0);
+        form.querySelector("input[name='filename']").value = file.name;
+        fileInput.name = "";
+        fileInput.value = "";
+        if (statusEl) statusEl.textContent = "Arquivo enviado. Salvando material...";
+        form.submit();
+      } catch (err) {
+        if (statusEl) statusEl.textContent = err.message || "Erro no upload.";
+      }
+    });
+  })();
+</script>
