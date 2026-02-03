@@ -839,7 +839,7 @@ app.get("/admin/materials", requireAdmin("reader"), asyncHandler(async (req, res
   }
   const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const { rows } = await adminQuery(
-    `SELECT id, title, description, tags, filename, size_bytes, is_published, created_at
+    `SELECT id, title, description, tags, filename, size_bytes, is_published, publish_at, created_at
      FROM materials
      ${clause}
      ORDER BY created_at DESC`,

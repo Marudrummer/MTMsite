@@ -54,7 +54,7 @@
         <div class="table">
           <div class="table-row table-header">
             <div>Título</div>
-            <div>Publicado</div>
+            <div>Status</div>
             <div>Arquivo</div>
             <div>Ações</div>
           </div>
@@ -71,7 +71,7 @@
                   </div>
                 <% } %>
               </div>
-              <div><%= material.is_published ? 'sim' : 'não' %></div>
+              <div><%= material.is_published ? 'publicado' : (material.publish_at ? 'agendado' : 'rascunho') %></div>
               <div class="muted"><%= material.filename || '-' %></div>
               <div class="admin-actions">
                 <a class="btn ghost" href="/admin/materials/<%= material.id %>">Ver</a>
