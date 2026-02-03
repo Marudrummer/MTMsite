@@ -26,10 +26,25 @@
     return stored || "/";
   }
 
+  function detectProvider(user) {
+    const metaProviders = user.app_metadata && user.app_metadata.providers;
+    if (Array.isArray(metaProviders) && metaProviders.includes("google")) {
+      return "google";
+    }
+    const metaProvider = (user.app_metadata && user.app_metadata.provider) || "";
+    if (metaProvider) {
+      return metaProvider === "email" ? "magiclink" : metaProvider;
+    }
+    if (Array.isArray(user.identities) && user.identities.length) {
+      const identityProvider = user.identities[0].provider;
+      return identityProvider === "email" ? "magiclink" : identityProvider;
+    }
+    return "magiclink";
+  }
+
   async function upsertProfileIfMissing(user) {
     if (!user) return;
-    const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
-    const provider = rawProvider === "email" ? "magiclink" : rawProvider;
+    const provider = detectProvider(user);
     const pendingRaw = localStorage.getItem("mtm_pending_profile");
     let pending = null;
     if (pendingRaw) {
@@ -201,8 +216,7 @@
         const { data: userData } = await supabase.auth.getUser();
         const user = userData && userData.user;
         if (!user) return;
-        const rawProvider = (user.app_metadata && user.app_metadata.provider) || "";
-        const provider = rawProvider === "email" ? "magiclink" : rawProvider;
+        const provider = detectProvider(user);
 
         const payload = {
           id: user.id,
