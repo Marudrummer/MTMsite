@@ -452,7 +452,11 @@ app.post("/api/profile/complete", asyncHandler(async (req, res) => {
 
   const email = String(payload.email || "").trim().toLowerCase();
   const userId = payload.sub;
-  const provider = String(req.body.provider || "").trim() || null;
+  const providersFromToken = payload.app_metadata && payload.app_metadata.providers;
+  const providerFromToken = Array.isArray(providersFromToken) && providersFromToken.includes("google")
+    ? "google"
+    : (payload.app_metadata && payload.app_metadata.provider) || null;
+  const provider = providerFromToken || String(req.body.provider || "").trim() || null;
   const nameInput = String(req.body.name || "").trim();
   const companyInput = String(req.body.company || "").trim();
   const phoneInput = String(req.body.phone || "").trim();
@@ -493,7 +497,11 @@ app.post("/api/profile/login-event", asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Não autenticado." });
   }
 
-  const provider = String(req.body.provider || "").trim() || null;
+  const providersFromToken = payload.app_metadata && payload.app_metadata.providers;
+  const providerFromToken = Array.isArray(providersFromToken) && providersFromToken.includes("google")
+    ? "google"
+    : (payload.app_metadata && payload.app_metadata.provider) || null;
+  const provider = providerFromToken || String(req.body.provider || "").trim() || null;
   const ip = getClientIp(req);
   const userAgent = String(req.headers["user-agent"] || "").slice(0, 512);
 
