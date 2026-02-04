@@ -533,7 +533,7 @@ app.get("/materiais/:id/download", requireUserAuth, asyncHandler(async (req, res
   res.redirect(data.signedUrl);
 }));
 app.get("/login", (req, res) => res.render("login"));
-app.get("/perfil", (req, res) => res.render("perfil"));
+app.get("/perfil", (req, res) => res.redirect("/"));
 app.get("/blog", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).map((p) => ({ ...p, card_image: getCardImage(p) }));
   res.render("lab", { posts });
