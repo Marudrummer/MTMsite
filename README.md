@@ -86,6 +86,9 @@ Permissões por role:
 - admin: igual editor
 - super_admin: igual editor + exclusão definitiva
 
+## Logs de login
+Para registrar cada login (histórico), execute `db/profile_login_events.sql` no Supabase SQL Editor.
+
 Filtros disponíveis:
 - provider, status (ativos/inativos), data (range), busca por nome/email/empresa
 

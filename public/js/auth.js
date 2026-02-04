@@ -66,6 +66,12 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+
+    await fetch("/api/profile/login-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider })
+    });
   }
 
   async function ensureProfile() {

@@ -485,6 +485,26 @@ app.post("/api/profile/complete", asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.post("/api/profile/login-event", asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.sub || !payload.email) {
+    return res.status(401).json({ error: "Não autenticado." });
+  }
+
+  const provider = String(req.body.provider || "").trim() || null;
+  const ip = getClientIp(req);
+  const userAgent = String(req.headers["user-agent"] || "").slice(0, 512);
+
+  await adminQuery(
+    `INSERT INTO profile_logins (profile_id, email, provider, ip, user_agent)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [payload.sub, payload.email, provider, ip || null, userAgent || null]
+  );
+
+  res.json({ ok: true });
+}));
+
 app.get("/", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).slice(0, 3).map((p) => ({ ...p, card_image: getCardImage(p) }));
   const site = loadSiteData();
