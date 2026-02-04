@@ -26,8 +26,8 @@
         <div>
           <p><strong>Provider:</strong> <%= profile.provider || '-' %></p>
           <p><strong>Status:</strong> <%= profile.is_active ? 'ativo' : 'inativo' %></p>
-          <p><strong>Criado em:</strong> <%= profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : '-' %></p>
-          <p><strong>Atualizado em:</strong> <%= profile.updated_at ? new Date(profile.updated_at).toISOString().split('T')[0] : '-' %></p>
+          <p><strong>Criado em:</strong> <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %></p>
+          <p><strong>Atualizado em:</strong> <%= profile.updated_at ? new Date(profile.updated_at).toLocaleString('pt-BR') : '-' %></p>
         </div>
       </div>
     </div>
