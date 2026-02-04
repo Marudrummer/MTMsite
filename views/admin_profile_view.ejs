@@ -28,6 +28,8 @@
           <p><strong>Status:</strong> <%= profile.is_active ? 'ativo' : 'inativo' %></p>
           <p><strong>Criado em:</strong> <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %></p>
           <p><strong>Atualizado em:</strong> <%= profile.updated_at ? new Date(profile.updated_at).toLocaleString('pt-BR') : '-' %></p>
+          <p><strong>Logins registrados:</strong> <%= profile.login_count || 0 %></p>
+          <p><strong>Último login:</strong> <%= profile.last_login_at ? new Date(profile.last_login_at).toLocaleString('pt-BR') : '-' %></p>
         </div>
       </div>
     </div>

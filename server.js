@@ -364,29 +364,30 @@ async function logAudit(actorAdminId, action, entityType, entityId, metadata = {
   }
 }
 
-function buildProfileFilters(query) {
+function buildProfileFilters(query, alias = "") {
   const where = [];
   const params = [];
   let idx = 1;
+  const prefix = alias ? `${alias}.` : "";
   if (query.provider && query.provider !== "all") {
-    where.push(`provider = $${idx++}`);
+    where.push(`${prefix}provider = $${idx++}`);
     params.push(query.provider);
   }
   if (query.status === "active") {
-    where.push(`is_active = true`);
+    where.push(`${prefix}is_active = true`);
   } else if (query.status === "inactive") {
-    where.push(`is_active = false`);
+    where.push(`${prefix}is_active = false`);
   }
   if (query.from) {
-    where.push(`created_at >= $${idx++}`);
+    where.push(`${prefix}created_at >= $${idx++}`);
     params.push(query.from);
   }
   if (query.to) {
-    where.push(`created_at <= $${idx++}`);
+    where.push(`${prefix}created_at <= $${idx++}`);
     params.push(query.to);
   }
   if (query.q) {
-    where.push(`(name ILIKE $${idx} OR email ILIKE $${idx} OR company ILIKE $${idx})`);
+    where.push(`(${prefix}name ILIKE $${idx} OR ${prefix}email ILIKE $${idx} OR ${prefix}company ILIKE $${idx})`);
     params.push(`%${query.q}%`);
     idx += 1;
   }
@@ -496,11 +497,16 @@ app.post("/api/profile/login-event", asyncHandler(async (req, res) => {
   const ip = getClientIp(req);
   const userAgent = String(req.headers["user-agent"] || "").slice(0, 512);
 
-  await adminQuery(
-    `INSERT INTO profile_logins (profile_id, email, provider, ip, user_agent)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [payload.sub, payload.email, provider, ip || null, userAgent || null]
-  );
+  try {
+    await adminQuery(
+      `INSERT INTO profile_logins (profile_id, email, provider, ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [payload.sub, payload.email, provider, ip || null, userAgent || null]
+    );
+  } catch (err) {
+    console.error("Login event failed:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Falha ao registrar login." });
+  }
 
   res.json({ ok: true });
 }));
@@ -768,17 +774,24 @@ app.get("/admin/profiles", requireAdmin("reader"), asyncHandler(async (req, res)
     to: req.query.to || "",
     q: String(req.query.q || "").trim()
   };
-  const { clause, params } = buildProfileFilters(filters);
+  const { clause, params } = buildProfileFilters(filters, "p");
   const countResult = await adminQuery(
-    `SELECT COUNT(*)::int AS count FROM profiles ${clause}`,
+    `SELECT COUNT(*)::int AS count FROM profiles p ${clause}`,
     params
   );
   const total = countResult.rows[0]?.count || 0;
   const rowsResult = await adminQuery(
-    `SELECT id, email, name, company, phone, provider, is_active, created_at, updated_at
-     FROM profiles
+    `SELECT p.id, p.email, p.name, p.company, p.phone, p.provider, p.is_active, p.created_at, p.updated_at,
+            COALESCE(l.login_count, 0) AS login_count,
+            l.last_login_at
+     FROM profiles p
+     LEFT JOIN (
+       SELECT profile_id, COUNT(*)::int AS login_count, MAX(created_at) AS last_login_at
+       FROM profile_logins
+       GROUP BY profile_id
+     ) l ON l.profile_id = p.id
      ${clause}
-     ORDER BY created_at DESC
+     ORDER BY p.created_at DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, perPage, offset]
   );
@@ -843,7 +856,17 @@ app.get("/admin/profiles/export.json", requireAdmin("editor"), asyncHandler(asyn
 
 app.get("/admin/profiles/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const { rows } = await adminQuery(
-    "SELECT id, email, name, company, phone, provider, is_active, deleted_at, created_at, updated_at FROM profiles WHERE id = $1 LIMIT 1",
+    `SELECT p.id, p.email, p.name, p.company, p.phone, p.provider, p.is_active, p.deleted_at, p.created_at, p.updated_at,
+            COALESCE(l.login_count, 0) AS login_count,
+            l.last_login_at
+     FROM profiles p
+     LEFT JOIN (
+       SELECT profile_id, COUNT(*)::int AS login_count, MAX(created_at) AS last_login_at
+       FROM profile_logins
+       GROUP BY profile_id
+     ) l ON l.profile_id = p.id
+     WHERE p.id = $1
+     LIMIT 1`,
     [req.params.id]
   );
   const profile = rows[0];

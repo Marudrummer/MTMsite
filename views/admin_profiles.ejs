@@ -62,6 +62,7 @@
             <div>Provider</div>
           <div>Status</div>
           <div>Cadastro</div>
+          <div>Logins</div>
           <div>Ações</div>
           </div>
           <% profiles.forEach(function(profile){ %>
@@ -75,6 +76,9 @@
               <div><%= profile.is_active ? 'ativo' : 'inativo' %></div>
               <div class="muted">
                 <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %>
+              </div>
+              <div class="muted">
+                <%= profile.login_count || 0 %>
               </div>
               <div class="admin-actions">
                 <a class="btn ghost" href="/admin/profiles/<%= profile.id %>">Ver</a>
