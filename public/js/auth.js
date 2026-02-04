@@ -42,47 +42,30 @@
     return "magiclink";
   }
 
-  async function upsertProfileIfMissing(user) {
+  function normalizeValue(value) {
+    const text = String(value || "").trim();
+    return text ? text : null;
+  }
+
+  async function completeProfile(user, overrides = {}) {
     if (!user) return;
     const provider = detectProvider(user);
-    const pendingRaw = localStorage.getItem("mtm_pending_profile");
-    let pending = null;
-    if (pendingRaw) {
-      try {
-        pending = JSON.parse(pendingRaw);
-      } catch (err) {
-        pending = null;
-      }
-    }
-
-    const { data: existing, error: existingError } = await supabase
-      .from("profiles")
-      .select("id, name, company, phone")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!existingError && existing && existing.id) {
-      return;
-    }
-
     const nameFallback =
       (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) ||
       (user.email ? user.email.split("@")[0] : "");
 
     const payload = {
-      id: user.id,
-      email: user.email,
-      name: pending && pending.name ? pending.name : nameFallback,
-      company: pending && pending.company ? pending.company : "",
-      phone: pending && pending.phone ? pending.phone : "",
       provider,
-      updated_at: new Date().toISOString()
+      name: normalizeValue(overrides.name || nameFallback),
+      company: normalizeValue(overrides.company || ""),
+      phone: normalizeValue(overrides.phone || "")
     };
 
-    await supabase.from("profiles").upsert(payload, { onConflict: "id" });
-    if (pending && pending.email && pending.email === user.email) {
-      localStorage.removeItem("mtm_pending_profile");
-    }
+    await fetch("/api/profile/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
   }
 
   async function ensureProfile() {
@@ -90,7 +73,7 @@
     const user = userData && userData.user;
     if (!user) return;
 
-    await upsertProfileIfMissing(user);
+    await completeProfile(user);
 
     const onLogin = window.location.pathname === "/login";
     const nextTarget = getNextTarget();
@@ -124,9 +107,6 @@
     const logoutBtn = document.querySelector("[data-mtm-logout]");
     const profileForm = document.querySelector("[data-mtm-profile-form]");
 
-    const nextFallback = "/";
-    const pendingKey = "mtm_pending_profile";
-
     if (loginForm) {
       loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -138,12 +118,17 @@
           if (loginStatus) loginStatus.textContent = "Preencha todos os campos antes de enviar o link.";
           return;
         }
-        localStorage.setItem(
-          pendingKey,
-          JSON.stringify({ email, name, company, phone, updated_at: new Date().toISOString() })
-        );
         const nextTarget = getNextTarget();
         const redirectTo = `${window.location.origin}/login?next=${encodeURIComponent(nextTarget)}`;
+        const pendingResponse = await fetch("/api/pending-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, name, company, phone })
+        });
+        if (!pendingResponse.ok) {
+          if (loginStatus) loginStatus.textContent = "Erro ao salvar dados. Tente novamente.";
+          return;
+        }
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo }
@@ -195,52 +180,25 @@
     }
 
     if (profileForm) {
-      const pendingRaw = localStorage.getItem(pendingKey);
-      if (pendingRaw) {
-        try {
-          const pending = JSON.parse(pendingRaw);
-          if (pending) {
-            const nameInput = profileForm.querySelector("input[name='name']");
-            const companyInput = profileForm.querySelector("input[name='company']");
-            const phoneInput = profileForm.querySelector("input[name='phone']");
-            if (nameInput && !nameInput.value) nameInput.value = pending.name || "";
-            if (companyInput && !companyInput.value) companyInput.value = pending.company || "";
-            if (phoneInput && !phoneInput.value) phoneInput.value = pending.phone || "";
-          }
-        } catch (err) {
-          localStorage.removeItem(pendingKey);
-        }
-      }
       profileForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const { data: userData } = await supabase.auth.getUser();
         const user = userData && userData.user;
         if (!user) return;
-        const provider = detectProvider(user);
 
-        const payload = {
-          id: user.id,
-          email: user.email,
+        await completeProfile(user, {
           name: profileForm.querySelector("input[name='name']").value.trim(),
           company: profileForm.querySelector("input[name='company']").value.trim(),
-          phone: profileForm.querySelector("input[name='phone']").value.trim(),
-          provider,
-          updated_at: new Date().toISOString()
-        };
+          phone: profileForm.querySelector("input[name='phone']").value.trim()
+        });
 
-        const { error } = await supabase.from("profiles").upsert(payload, { onConflict: "id" });
         const statusEl = document.querySelector("[data-mtm-profile-status]");
         if (statusEl) {
-          statusEl.textContent = error
-            ? "Erro ao salvar. Verifique os dados."
-            : "Perfil salvo com sucesso.";
+          statusEl.textContent = "Perfil salvo com sucesso.";
         }
-        if (!error) {
-          localStorage.removeItem(pendingKey);
-          const next = getNextTarget();
-          localStorage.removeItem("mtm_next");
-          window.location.href = next;
-        }
+        const next = getNextTarget();
+        localStorage.removeItem("mtm_next");
+        window.location.href = next;
       });
     }
 
@@ -248,7 +206,7 @@
       const { data: userData } = await supabase.auth.getUser();
       const user = userData && userData.user;
       if (user) {
-        await upsertProfileIfMissing(user);
+        await completeProfile(user);
       }
       ensureProfile();
     });

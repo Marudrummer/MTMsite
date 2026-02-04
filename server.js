@@ -227,16 +227,20 @@ function safeFilename(name) {
     .replace(/[^a-z0-9._-]/g, "");
 }
 
-function decodeJwtSub(token) {
+function decodeJwtPayload(token) {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length < 2) return null;
   try {
-    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
-    return payload.sub || null;
+    return JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
   } catch (err) {
     return null;
   }
+}
+
+function decodeJwtSub(token) {
+  const payload = decodeJwtPayload(token);
+  return payload && payload.sub ? payload.sub : null;
 }
 
 function consumeDownloadRateLimit(ip) {
@@ -418,6 +422,68 @@ function requireUserAuth(req, res, next) {
   }
   return next();
 }
+
+app.post("/api/pending-profile", asyncHandler(async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const name = String(req.body.name || "").trim().slice(0, 120);
+  const company = String(req.body.company || "").trim().slice(0, 120);
+  const phone = String(req.body.phone || "").trim().slice(0, 40);
+  if (!email || !name || !company || !phone) {
+    return res.status(400).json({ error: "Dados incompletos." });
+  }
+  await adminQuery(
+    `INSERT INTO pending_profiles (email, name, company, phone, created_at, updated_at, expires_at)
+     VALUES ($1,$2,$3,$4, now(), now(), now() + interval '7 days')
+     ON CONFLICT (email)
+     DO UPDATE SET name = EXCLUDED.name, company = EXCLUDED.company, phone = EXCLUDED.phone,
+                   updated_at = now(), expires_at = now() + interval '7 days'`,
+    [email, name, company, phone]
+  );
+  res.json({ ok: true });
+}));
+
+app.post("/api/profile/complete", asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.sub || !payload.email) {
+    return res.status(401).json({ error: "Não autenticado." });
+  }
+
+  const email = String(payload.email || "").trim().toLowerCase();
+  const userId = payload.sub;
+  const provider = String(req.body.provider || "").trim() || null;
+  const nameInput = String(req.body.name || "").trim();
+  const companyInput = String(req.body.company || "").trim();
+  const phoneInput = String(req.body.phone || "").trim();
+
+  const { rows } = await adminQuery(
+    "SELECT name, company, phone FROM pending_profiles WHERE email = $1 AND (expires_at IS NULL OR expires_at > now()) LIMIT 1",
+    [email]
+  );
+  const pending = rows[0];
+  const name = pending && pending.name ? pending.name : (nameInput || null);
+  const company = pending && pending.company ? pending.company : (companyInput || null);
+  const phone = pending && pending.phone ? pending.phone : (phoneInput || null);
+
+  await adminQuery(
+    `INSERT INTO profiles (id, email, name, company, phone, provider, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6, now())
+     ON CONFLICT (id)
+     DO UPDATE SET
+       name = COALESCE(EXCLUDED.name, profiles.name),
+       company = COALESCE(EXCLUDED.company, profiles.company),
+       phone = COALESCE(EXCLUDED.phone, profiles.phone),
+       provider = COALESCE(EXCLUDED.provider, profiles.provider),
+       updated_at = now()`,
+    [userId, email, name || null, company || null, phone || null, provider]
+  );
+
+  if (pending) {
+    await adminQuery("DELETE FROM pending_profiles WHERE email = $1", [email]);
+  }
+
+  res.json({ ok: true });
+}));
 
 app.get("/", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).slice(0, 3).map((p) => ({ ...p, card_image: getCardImage(p) }));
