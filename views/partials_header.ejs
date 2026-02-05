@@ -39,7 +39,7 @@
         <a href="/blog">MTM LAB</a>
         <a href="/admin">Admin<% if (typeof pendingCount !== 'undefined' && pendingCount > 0) { %><span class="badge"><%= pendingCount %></span><% } %></a>
         <a href="/login" class="nav-auth" data-auth-when="logged-out">Entrar</a>
-        <button class="btn nav-auth" type="button" data-auth-when="logged-in" data-mtm-logout>Sair</button>
+        <a href="/logout" class="btn nav-auth" data-auth-when="logged-in" data-mtm-logout>Sair</a>
       </nav>
       <button class="nav-toggle" id="navToggle" type="button" aria-label="Abrir menu" aria-controls="siteNav" aria-expanded="false">☰</button>
     </div>

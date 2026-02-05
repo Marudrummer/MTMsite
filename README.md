@@ -7,6 +7,7 @@ Este projeto agora usa Postgres (Supabase) para posts e comentários.
 ### 1) Criar tabelas
 Abra o **Supabase SQL Editor** e execute o conteúdo de `db/schema.sql`.
 Para materiais (Storage), execute também `db/materials_schema.sql`.
+Para Leads/CRM, execute `db/leads_crm_schema.sql`.
 
 ### 2) Variáveis de ambiente
 Configure no `.env` (local) e na Vercel:
@@ -55,13 +56,14 @@ npm start
 ## Auth (Supabase)
 1) Execute `db/profiles_schema.sql` no Supabase SQL Editor.
 2) Execute `db/profiles_admin_patch.sql` para adicionar provider/estado (admin).
+3) (Opcional) Execute `db/profiles_lead_patch.sql` para garantir colunas base de leads.
 2) Configure Google OAuth no Supabase Auth:
    - Redirect URLs: `https://seu-dominio.com.br/login` e `http://localhost:3000/login`.
 3) Defina `SUPABASE_URL` e `SUPABASE_ANON_KEY` no `.env` e na Vercel.
 4) Teste o fluxo:
    - Deslogado → acessar `/materiais` → redireciona para `/login`.
-   - Login → preencher `/perfil`.
-   - Após perfil completo → acesso liberado.
+   - Login → preencher `/lead-rapido` (lead obrigatório).
+   - Após lead completo → acesso liberado.
 
 ## Admin (login fixo com usuários locais)
 1) Execute `db/admin_schema.sql` no Supabase SQL Editor.
@@ -79,19 +81,12 @@ npm start
 - Rate limit por IP (10 tentativas / 15 min).
 - Lockout por usuário após 5 falhas (15 min).
 
-## Cadastros (profiles)
-Permissões por role:
-- reader: visualizar lista/detalhe
-- editor: editar, desativar/reativar e exportar
-- admin: igual editor
-- super_admin: igual editor + exclusão definitiva
+## Cadastros (logins brutos)
+Lista de cadastros agora mostra entradas brutas de login (tabela `profile_logins`).
+Exportação e filtros funcionam sobre os logins registrados.
 
 ## Logs de login
 Para registrar cada login (histórico), execute `db/profile_login_events.sql` no Supabase SQL Editor.
-
-Filtros disponíveis:
-- provider, status (ativos/inativos), data (range), busca por nome/email/empresa
-
 Exportação:
 - `/admin/profiles/export.csv`
 - `/admin/profiles/export.json`
@@ -103,3 +98,11 @@ Exportação:
 3) Configure `SUPABASE_SERVICE_ROLE_KEY` na Vercel (somente server).
 4) Acesse `/admin/materials` para enviar e publicar arquivos.
 5) A rota `/materiais` lista apenas materiais publicados.
+
+## Leads (CRM)
+1) Execute `db/leads_crm_schema.sql` no Supabase SQL Editor.
+2) Após qualquer login, o usuário passa pelo **/lead-rapido** (obrigatório).
+3) Leads podem ser gerenciados em `/admin/leads` com filtros e export.
+4) Regras:
+   - email e phone_e164 são únicos
+   - source pode ser: login, materiais, nao-sabe ou ambos

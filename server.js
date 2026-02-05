@@ -364,7 +364,7 @@ async function logAudit(actorAdminId, action, entityType, entityId, metadata = {
   }
 }
 
-function buildProfileFilters(query, alias = "") {
+function buildProfileLoginFilters(query, alias = "") {
   const where = [];
   const params = [];
   let idx = 1;
@@ -372,11 +372,6 @@ function buildProfileFilters(query, alias = "") {
   if (query.provider && query.provider !== "all") {
     where.push(`${prefix}provider = $${idx++}`);
     params.push(query.provider);
-  }
-  if (query.status === "active") {
-    where.push(`${prefix}is_active = true`);
-  } else if (query.status === "inactive") {
-    where.push(`${prefix}is_active = false`);
   }
   if (query.from) {
     where.push(`${prefix}created_at >= $${idx++}`);
@@ -387,7 +382,7 @@ function buildProfileFilters(query, alias = "") {
     params.push(query.to);
   }
   if (query.q) {
-    where.push(`(${prefix}name ILIKE $${idx} OR ${prefix}email ILIKE $${idx} OR ${prefix}company ILIKE $${idx})`);
+    where.push(`(${prefix}email ILIKE $${idx})`);
     params.push(`%${query.q}%`);
     idx += 1;
   }
@@ -424,6 +419,110 @@ function requireUserAuth(req, res, next) {
   return next();
 }
 
+function getProviderFromPayload(payload) {
+  const providerRaw = (payload.app_metadata && payload.app_metadata.provider) || null;
+  if (providerRaw) {
+    return providerRaw === "email" ? "magiclink" : providerRaw;
+  }
+  return "magiclink";
+}
+
+function normalizePhoneBR(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  let normalized = digits;
+  if (normalized.startsWith("55")) {
+    normalized = normalized.slice(2);
+  }
+  if (normalized.length !== 10 && normalized.length !== 11) return null;
+  return `+55${normalized}`;
+}
+
+async function getLeadByProfileOrEmail(profileId, email) {
+  const { rows } = await adminQuery(
+    "SELECT * FROM leads WHERE profile_id = $1 OR email = $2 LIMIT 1",
+    [profileId, email]
+  );
+  return rows[0] || null;
+}
+
+function isLeadComplete(lead) {
+  return Boolean(lead && lead.name && lead.company && lead.phone_e164);
+}
+
+function resolveLeadSource(current, incoming) {
+  if (!incoming || incoming === "login") return current || "login";
+  if (!current || current === "login") return incoming;
+  if (current === incoming) return current;
+  return "ambos";
+}
+
+function buildLeadFilters(query) {
+  const where = [];
+  const params = [];
+  let idx = 1;
+  if (query.status && query.status !== "all") {
+    where.push(`crm_status = $${idx++}`);
+    params.push(query.status);
+  }
+  if (query.provider && query.provider !== "all") {
+    where.push(`provider = $${idx++}`);
+    params.push(query.provider);
+  }
+  if (query.source && query.source !== "all") {
+    where.push(`source = $${idx++}`);
+    params.push(query.source);
+  }
+  if (query.urgency && query.urgency !== "all") {
+    where.push(`urgency = $${idx++}`);
+    params.push(query.urgency);
+  }
+  if (query.next_action_type && query.next_action_type !== "all") {
+    where.push(`next_action_type = $${idx++}`);
+    params.push(query.next_action_type);
+  }
+  if (query.overdue === "1") {
+    where.push(`next_action_at IS NOT NULL AND next_action_at < now()`);
+  }
+  if (query.from) {
+    where.push(`created_at >= $${idx++}`);
+    params.push(query.from);
+  }
+  if (query.to) {
+    where.push(`created_at <= $${idx++}`);
+    params.push(query.to);
+  }
+  if (query.q) {
+    where.push(`(name ILIKE $${idx} OR email ILIKE $${idx} OR company ILIKE $${idx} OR phone_e164 ILIKE $${idx})`);
+    params.push(`%${query.q}%`);
+    idx += 1;
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return { clause, params };
+}
+
+async function requireLeadComplete(req, res, next) {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.sub || !payload.email) {
+    const nextUrl = encodeURIComponent(req.originalUrl || "/");
+    return res.redirect(`/login?next=${nextUrl}`);
+  }
+  const lead = await getLeadByProfileOrEmail(payload.sub, payload.email);
+  const src = req.path === "/materiais" ? "materiais" : req.path === "/nao-sabe" ? "nao-sabe" : "login";
+  if (!isLeadComplete(lead)) {
+    const nextUrl = encodeURIComponent(req.originalUrl || "/");
+    return res.redirect(`/lead-rapido?next=${nextUrl}&src=${encodeURIComponent(src)}`);
+  }
+  if (lead && src !== "login") {
+    const nextSource = resolveLeadSource(lead.source, src);
+    if (nextSource !== lead.source) {
+      await adminQuery("UPDATE leads SET source = $1, updated_at = now() WHERE id = $2", [nextSource, lead.id]);
+    }
+  }
+  return next();
+}
+
 app.post("/api/pending-profile", asyncHandler(async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const name = String(req.body.name || "").trim().slice(0, 120);
@@ -452,10 +551,8 @@ app.post("/api/profile/complete", asyncHandler(async (req, res) => {
 
   const email = String(payload.email || "").trim().toLowerCase();
   const userId = payload.sub;
-  const providersFromToken = payload.app_metadata && payload.app_metadata.providers;
-  const providerFromToken = Array.isArray(providersFromToken) && providersFromToken.includes("google")
-    ? "google"
-    : (payload.app_metadata && payload.app_metadata.provider) || null;
+  const providerFromTokenRaw = (payload.app_metadata && payload.app_metadata.provider) || null;
+  const providerFromToken = providerFromTokenRaw === "email" ? "magiclink" : providerFromTokenRaw;
   const provider = providerFromToken || String(req.body.provider || "").trim() || null;
   const nameInput = String(req.body.name || "").trim();
   const companyInput = String(req.body.company || "").trim();
@@ -497,10 +594,8 @@ app.post("/api/profile/login-event", asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Não autenticado." });
   }
 
-  const providersFromToken = payload.app_metadata && payload.app_metadata.providers;
-  const providerFromToken = Array.isArray(providersFromToken) && providersFromToken.includes("google")
-    ? "google"
-    : (payload.app_metadata && payload.app_metadata.provider) || null;
+  const providerFromTokenRaw = (payload.app_metadata && payload.app_metadata.provider) || null;
+  const providerFromToken = providerFromTokenRaw === "email" ? "magiclink" : providerFromTokenRaw;
   const provider = providerFromToken || String(req.body.provider || "").trim() || null;
   const ip = getClientIp(req);
   const userAgent = String(req.headers["user-agent"] || "").slice(0, 512);
@@ -519,6 +614,98 @@ app.post("/api/profile/login-event", asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.get("/auth/need-lead", requireUserAuth, asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.sub || !payload.email) {
+    return res.status(401).json({ error: "Não autenticado." });
+  }
+  const lead = await getLeadByProfileOrEmail(payload.sub, payload.email);
+  res.json({ needLead: !isLeadComplete(lead) });
+}));
+
+app.get("/lead-rapido", requireUserAuth, asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  const email = payload && payload.email ? String(payload.email) : "";
+  const next = req.query.next || "/materiais";
+  res.render("lead_rapido", {
+    email,
+    next,
+    src: req.query.src || "login",
+    error: null,
+    values: { name: "", company: "", phone: "" }
+  });
+}));
+
+app.post("/lead-rapido", requireUserAuth, asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.sub || !payload.email) {
+    return res.status(401).json({ error: "Não autenticado." });
+  }
+  const email = String(payload.email || "").trim().toLowerCase();
+  const profileId = payload.sub;
+  const provider = getProviderFromPayload(payload);
+  const name = String(req.body.name || "").trim().slice(0, 120);
+  const company = String(req.body.company || "").trim().slice(0, 120);
+  const phoneRaw = String(req.body.phone || "").trim();
+  const phoneE164 = normalizePhoneBR(phoneRaw);
+  const next = req.body.next || "/materiais";
+  const src = String(req.body.src || "login");
+
+  if (!name || !company || !phoneE164) {
+    return res.status(400).render("lead_rapido", {
+      email,
+      next,
+      src,
+      error: "Preencha nome, empresa e WhatsApp válidos.",
+      values: { name, company, phone: phoneRaw }
+    });
+  }
+
+  const existingPhone = await adminQuery(
+    "SELECT email FROM leads WHERE phone_e164 = $1 AND email <> $2 LIMIT 1",
+    [phoneE164, email]
+  );
+  if (existingPhone.rows[0]) {
+    return res.status(400).render("lead_rapido", {
+      email,
+      next,
+      src,
+      error: "Esse WhatsApp já está vinculado a outro cadastro. Fale conosco pelo WhatsApp.",
+      values: { name, company, phone: phoneRaw }
+    });
+  }
+
+  const lead = await getLeadByProfileOrEmail(profileId, email);
+  const source = resolveLeadSource(lead && lead.source, src);
+
+  const { rows } = await adminQuery(
+    `INSERT INTO leads (profile_id, email, name, company, phone_e164, provider, source, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7, now())
+     ON CONFLICT (profile_id)
+     DO UPDATE SET
+       email = EXCLUDED.email,
+       name = EXCLUDED.name,
+       company = EXCLUDED.company,
+       phone_e164 = EXCLUDED.phone_e164,
+       provider = EXCLUDED.provider,
+       source = EXCLUDED.source,
+       updated_at = now()
+     RETURNING id`,
+    [profileId, email, name, company, phoneE164, provider, source]
+  );
+  const leadId = rows[0] && rows[0].id;
+  await adminQuery(
+    "INSERT INTO lead_events (lead_id, event_type, metadata) VALUES ($1,$2,$3)",
+    [leadId, lead ? "updated" : "created", { source }]
+  );
+  await logAudit(null, "lead_created", "leads", leadId || null, { source });
+
+  res.redirect(next);
+}));
+
 app.get("/", asyncHandler(async (req, res) => {
   const posts = (await getPosts()).slice(0, 3).map((p) => ({ ...p, card_image: getCardImage(p) }));
   const site = loadSiteData();
@@ -527,7 +714,11 @@ app.get("/", asyncHandler(async (req, res) => {
 
 app.get("/sobre", (req, res) => res.render("sobre"));
 app.get("/servicos", (req, res) => res.render("servicos"));
-app.get("/materiais", requireUserAuth, asyncHandler(async (req, res) => {
+app.get("/logout", (req, res) => {
+  res.clearCookie("mtm_access_token", { path: "/" });
+  res.redirect("/");
+});
+app.get("/materiais", requireUserAuth, requireLeadComplete, asyncHandler(async (req, res) => {
   const { rows } = await adminQuery(
     `SELECT id, title, description, tags, filename, size_bytes, created_at
      FROM materials
@@ -537,7 +728,7 @@ app.get("/materiais", requireUserAuth, asyncHandler(async (req, res) => {
   res.render("materiais", { materials: rows || [] });
 }));
 
-app.get("/materiais/:id/download", requireUserAuth, asyncHandler(async (req, res) => {
+app.get("/materiais/:id/download", requireUserAuth, requireLeadComplete, asyncHandler(async (req, res) => {
   if (!supabaseAdmin) return res.status(500).send("Storage não configurado.");
   const { rows } = await adminQuery(
     `SELECT * FROM materials
@@ -611,7 +802,7 @@ app.get("/contato", (req, res) => {
   res.render("contato", { preset });
 });
 
-app.get("/nao-sabe", requireUserAuth, (req, res) => {
+app.get("/nao-sabe", requireUserAuth, requireLeadComplete, (req, res) => {
   res.render("nao_sabe", {
     whatsappPhone: WHATSAPP_PHONE,
     sent: req.query.sent === "1"
@@ -773,33 +964,25 @@ app.post("/admin/users/:id/delete", requireAdmin("super_admin"), requireAdminCsr
 
 app.get("/admin/profiles", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const page = Math.max(1, Number(req.query.page || 1));
-  const perPage = 25;
+  const perPage = 30;
   const offset = (page - 1) * perPage;
   const filters = {
     provider: req.query.provider || "all",
-    status: req.query.status || "all",
     from: req.query.from || "",
     to: req.query.to || "",
     q: String(req.query.q || "").trim()
   };
-  const { clause, params } = buildProfileFilters(filters, "p");
+  const { clause, params } = buildProfileLoginFilters(filters, "l");
   const countResult = await adminQuery(
-    `SELECT COUNT(*)::int AS count FROM profiles p ${clause}`,
+    `SELECT COUNT(*)::int AS count FROM profile_logins l ${clause}`,
     params
   );
   const total = countResult.rows[0]?.count || 0;
   const rowsResult = await adminQuery(
-    `SELECT p.id, p.email, p.name, p.company, p.phone, p.provider, p.is_active, p.created_at, p.updated_at,
-            COALESCE(l.login_count, 0) AS login_count,
-            l.last_login_at
-     FROM profiles p
-     LEFT JOIN (
-       SELECT profile_id, COUNT(*)::int AS login_count, MAX(created_at) AS last_login_at
-       FROM profile_logins
-       GROUP BY profile_id
-     ) l ON l.profile_id = p.id
+    `SELECT l.id, l.profile_id, l.email, l.provider, l.ip, l.user_agent, l.created_at
+     FROM profile_logins l
      ${clause}
-     ORDER BY p.created_at DESC
+     ORDER BY l.created_at DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, perPage, offset]
   );
@@ -812,23 +995,58 @@ app.get("/admin/profiles", requireAdmin("reader"), asyncHandler(async (req, res)
   });
 }));
 
+app.post("/admin/profiles/delete-selected", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const ids = []
+    .concat(req.body.ids || [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (ids.length) {
+    await adminQuery(
+      `DELETE FROM profile_logins WHERE id = ANY($1::bigint[])`,
+      [ids]
+    );
+    await logAudit(req.admin && req.admin.id, "profile_logins_deleted", "profile_logins", null, { ids_count: ids.length });
+  }
+  res.redirect(`/admin/profiles?${new URLSearchParams({
+    provider: req.body.provider || "all",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: req.body.q || ""
+  }).toString()}`);
+}));
+
+app.post("/admin/profiles/delete-all", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const filters = {
+    provider: req.body.provider || "all",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: String(req.body.q || "").trim()
+  };
+  const { clause, params } = buildProfileLoginFilters(filters, "l");
+  const result = await adminQuery(
+    `DELETE FROM profile_logins l ${clause} RETURNING id`,
+    params
+  );
+  await logAudit(req.admin && req.admin.id, "profile_logins_deleted_all", "profile_logins", null, { deleted_count: result.rows.length, filters });
+  res.redirect(`/admin/profiles?${new URLSearchParams(filters).toString()}`);
+}));
+
 app.get("/admin/profiles/export.csv", requireAdmin("editor"), asyncHandler(async (req, res) => {
   const filters = {
     provider: req.query.provider || "all",
-    status: req.query.status || "all",
     from: req.query.from || "",
     to: req.query.to || "",
     q: String(req.query.q || "").trim()
   };
-  const { clause, params } = buildProfileFilters(filters);
+  const { clause, params } = buildProfileLoginFilters(filters);
   const rowsResult = await adminQuery(
-    `SELECT id, name, email, company, phone, provider, is_active, created_at, updated_at
-     FROM profiles
+    `SELECT id, profile_id, email, provider, ip, user_agent, created_at
+     FROM profile_logins
      ${clause}
      ORDER BY created_at DESC`,
     params
   );
-  const header = ["id", "name", "email", "company", "phone", "provider", "is_active", "created_at", "updated_at"];
+  const header = ["id", "profile_id", "email", "provider", "ip", "user_agent", "created_at"];
   const lines = [header.join(",")];
   rowsResult.rows.forEach((row) => {
     const values = header.map((key) => {
@@ -839,22 +1057,21 @@ app.get("/admin/profiles/export.csv", requireAdmin("editor"), asyncHandler(async
     lines.push(values.join(","));
   });
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", "attachment; filename=profiles.csv");
+  res.setHeader("Content-Disposition", "attachment; filename=cadastros-logins.csv");
   res.send(lines.join("\n"));
 }));
 
 app.get("/admin/profiles/export.json", requireAdmin("editor"), asyncHandler(async (req, res) => {
   const filters = {
     provider: req.query.provider || "all",
-    status: req.query.status || "all",
     from: req.query.from || "",
     to: req.query.to || "",
     q: String(req.query.q || "").trim()
   };
-  const { clause, params } = buildProfileFilters(filters);
+  const { clause, params } = buildProfileLoginFilters(filters);
   const rowsResult = await adminQuery(
-    `SELECT id, name, email, company, phone, provider, is_active, created_at, updated_at
-     FROM profiles
+    `SELECT id, profile_id, email, provider, ip, user_agent, created_at
+     FROM profile_logins
      ${clause}
      ORDER BY created_at DESC`,
     params
@@ -864,61 +1081,253 @@ app.get("/admin/profiles/export.json", requireAdmin("editor"), asyncHandler(asyn
 
 app.get("/admin/profiles/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const { rows } = await adminQuery(
-    `SELECT p.id, p.email, p.name, p.company, p.phone, p.provider, p.is_active, p.deleted_at, p.created_at, p.updated_at,
-            COALESCE(l.login_count, 0) AS login_count,
-            l.last_login_at
-     FROM profiles p
-     LEFT JOIN (
-       SELECT profile_id, COUNT(*)::int AS login_count, MAX(created_at) AS last_login_at
-       FROM profile_logins
-       GROUP BY profile_id
-     ) l ON l.profile_id = p.id
-     WHERE p.id = $1
+    `SELECT id, profile_id, email, provider, ip, user_agent, created_at
+     FROM profile_logins
+     WHERE id = $1
      LIMIT 1`,
     [req.params.id]
   );
-  const profile = rows[0];
-  if (!profile) return res.status(404).render("404");
-  await logAudit(req.admin && req.admin.id, "profile_viewed", "profiles", req.params.id, {});
-  res.render("admin_profile_view", { profile });
+  const login = rows[0];
+  if (!login) return res.status(404).render("404");
+  await logAudit(req.admin && req.admin.id, "profile_login_viewed", "profile_logins", req.params.id, {});
+  res.render("admin_profile_view", { profile: login });
 }));
 
-app.post("/admin/profiles/:id/update", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+app.get("/admin/leads", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const perPage = 30;
+  const offset = (page - 1) * perPage;
+  const filters = {
+    status: req.query.status || "all",
+    provider: req.query.provider || "all",
+    source: req.query.source || "all",
+    urgency: req.query.urgency || "all",
+    next_action_type: req.query.next_action_type || "all",
+    overdue: req.query.overdue || "",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildLeadFilters(filters);
+  const countResult = await adminQuery(
+    `SELECT COUNT(*)::int AS count FROM leads ${clause}`,
+    params
+  );
+  const total = countResult.rows[0]?.count || 0;
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, company, phone_e164, provider, source, crm_status, urgency,
+            next_action_type, next_action_at, created_at, updated_at
+     FROM leads
+     ${clause}
+     ORDER BY created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, perPage, offset]
+  );
+  res.render("admin_leads", {
+    leads: rowsResult.rows || [],
+    filters,
+    page,
+    total,
+    perPage
+  });
+}));
+
+app.get("/admin/leads/export.csv", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.query.status || "all",
+    provider: req.query.provider || "all",
+    source: req.query.source || "all",
+    urgency: req.query.urgency || "all",
+    next_action_type: req.query.next_action_type || "all",
+    overdue: req.query.overdue || "",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildLeadFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, company, phone_e164, provider, source, crm_status, urgency,
+            next_action_type, next_action_at, created_at, updated_at
+     FROM leads
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  const header = ["id", "name", "email", "company", "phone_e164", "provider", "source", "crm_status", "urgency", "next_action_type", "next_action_at", "created_at", "updated_at"];
+  const lines = [header.join(",")];
+  rowsResult.rows.forEach((row) => {
+    const values = header.map((key) => {
+      const value = row[key] === null || row[key] === undefined ? "" : String(row[key]);
+      const escaped = value.replace(/"/g, '""');
+      return `"${escaped}"`;
+    });
+    lines.push(values.join(","));
+  });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=leads.csv");
+  res.send(lines.join("\n"));
+}));
+
+app.get("/admin/leads/export.json", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.query.status || "all",
+    provider: req.query.provider || "all",
+    source: req.query.source || "all",
+    urgency: req.query.urgency || "all",
+    next_action_type: req.query.next_action_type || "all",
+    overdue: req.query.overdue || "",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildLeadFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, company, phone_e164, provider, source, crm_status, urgency,
+            next_action_type, next_action_at, created_at, updated_at
+     FROM leads
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  res.json(rowsResult.rows || []);
+}));
+
+app.get("/admin/leads/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery(
+    `SELECT * FROM leads WHERE id = $1 LIMIT 1`,
+    [req.params.id]
+  );
+  const lead = rows[0];
+  if (!lead) return res.status(404).render("404");
+
+  const logins = await adminQuery(
+    `SELECT email, provider, created_at
+     FROM profile_logins
+     WHERE email = $1
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [lead.email]
+  );
+  const downloads = await adminQuery(
+    `SELECT material_id, created_at
+     FROM material_downloads
+     WHERE profile_id = $1
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [lead.profile_id]
+  );
+  res.render("admin_lead_view", {
+    lead,
+    logins: logins.rows || [],
+    downloads: downloads.rows || []
+  });
+}));
+
+app.post("/admin/leads/:id/update", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   const name = String(req.body.name || "").trim().slice(0, 120);
   const company = String(req.body.company || "").trim().slice(0, 120);
-  const phone = String(req.body.phone || "").trim().slice(0, 40);
-  const { rows } = await adminQuery(
-    "UPDATE profiles SET name = $1, company = $2, phone = $3, updated_at = now() WHERE id = $4 RETURNING id, email, name, company, phone, provider, is_active, deleted_at, created_at, updated_at",
-    [name, company, phone, req.params.id]
-  );
-  await logAudit(req.admin && req.admin.id, "profile_updated", "profiles", req.params.id, { name, company, phone });
-  const profile = rows[0];
-  if (!profile) return res.status(404).render("404");
-  res.render("admin_profile_view", { profile, saved: true });
-}));
+  const phoneRaw = String(req.body.phone_e164 || "").trim();
+  const phoneE164 = normalizePhoneBR(phoneRaw) || phoneRaw;
+  const interestTags = String(req.body.interest_tags || "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const urgency = String(req.body.urgency || "").trim() || null;
+  const nextActionType = String(req.body.next_action_type || "").trim() || null;
+  const nextActionAt = req.body.next_action_at ? new Date(req.body.next_action_at) : null;
+  const notes = String(req.body.notes || "").trim().slice(0, 2000);
 
-app.post("/admin/profiles/:id/deactivate", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   await adminQuery(
-    "UPDATE profiles SET is_active = false, deleted_at = now(), updated_at = now() WHERE id = $1",
-    [req.params.id]
+    `UPDATE leads
+     SET name = $1, company = $2, phone_e164 = $3, interest_tags = $4::jsonb,
+         urgency = $5, next_action_type = $6, next_action_at = $7, notes = $8, updated_at = now()
+     WHERE id = $9`,
+    [name, company, phoneE164, JSON.stringify(interestTags), urgency, nextActionType, nextActionAt, notes || null, req.params.id]
   );
-  await logAudit(req.admin && req.admin.id, "profile_deactivated", "profiles", req.params.id, {});
-  res.redirect(`/admin/profiles/${req.params.id}`);
-}));
-
-app.post("/admin/profiles/:id/reactivate", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
   await adminQuery(
-    "UPDATE profiles SET is_active = true, deleted_at = NULL, updated_at = now() WHERE id = $1",
-    [req.params.id]
+    "INSERT INTO lead_events (lead_id, event_type, metadata) VALUES ($1,$2,$3)",
+    [req.params.id, "updated", { name, company, phone_e164: phoneE164 }]
   );
-  await logAudit(req.admin && req.admin.id, "profile_reactivated", "profiles", req.params.id, {});
-  res.redirect(`/admin/profiles/${req.params.id}`);
+  await logAudit(req.admin && req.admin.id, "lead_updated", "leads", req.params.id, {});
+  res.redirect(`/admin/leads/${req.params.id}`);
 }));
 
-app.post("/admin/profiles/:id/delete", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
-  await adminQuery("DELETE FROM profiles WHERE id = $1", [req.params.id]);
-  await logAudit(req.admin && req.admin.id, "profile_deleted", "profiles", req.params.id, {});
-  res.redirect("/admin/profiles");
+app.post("/admin/leads/:id/status", requireAdmin("editor"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const status = String(req.body.crm_status || "").trim();
+  await adminQuery("UPDATE leads SET crm_status = $1, updated_at = now() WHERE id = $2", [status, req.params.id]);
+  await adminQuery(
+    "INSERT INTO lead_events (lead_id, event_type, metadata) VALUES ($1,$2,$3)",
+    [req.params.id, "status_changed", { crm_status: status }]
+  );
+  await logAudit(req.admin && req.admin.id, "lead_status_changed", "leads", req.params.id, { crm_status: status });
+  res.redirect(`/admin/leads/${req.params.id}`);
+}));
+
+app.post("/admin/leads/:id/delete", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery("SELECT email FROM leads WHERE id = $1", [req.params.id]);
+  const email = rows[0] && rows[0].email;
+  await adminQuery("DELETE FROM leads WHERE id = $1", [req.params.id]);
+  if (email) {
+    await adminQuery("DELETE FROM pending_profiles WHERE email = $1", [email]);
+  }
+  await logAudit(req.admin && req.admin.id, "lead_deleted", "leads", req.params.id, {});
+  res.redirect("/admin/leads");
+}));
+
+app.post("/admin/leads/delete-selected", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const ids = []
+    .concat(req.body.ids || [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (ids.length) {
+    const emailsResult = await adminQuery("SELECT email FROM leads WHERE id = ANY($1::uuid[])", [ids]);
+    await adminQuery("DELETE FROM leads WHERE id = ANY($1::uuid[])", [ids]);
+    const emails = (emailsResult.rows || []).map((row) => row.email).filter(Boolean);
+    if (emails.length) {
+      await adminQuery("DELETE FROM pending_profiles WHERE email = ANY($1::text[])", [emails]);
+    }
+    await logAudit(req.admin && req.admin.id, "leads_deleted", "leads", null, { ids_count: ids.length });
+  }
+  res.redirect(`/admin/leads?${new URLSearchParams({
+    status: req.body.status || "all",
+    provider: req.body.provider || "all",
+    source: req.body.source || "all",
+    urgency: req.body.urgency || "all",
+    next_action_type: req.body.next_action_type || "all",
+    overdue: req.body.overdue || "",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: req.body.q || ""
+  }).toString()}`);
+}));
+
+app.post("/admin/leads/delete-all", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.body.status || "all",
+    provider: req.body.provider || "all",
+    source: req.body.source || "all",
+    urgency: req.body.urgency || "all",
+    next_action_type: req.body.next_action_type || "all",
+    overdue: req.body.overdue || "",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: String(req.body.q || "").trim()
+  };
+  const { clause, params } = buildLeadFilters(filters);
+  const emailsResult = await adminQuery(
+    `SELECT email FROM leads ${clause}`,
+    params
+  );
+  const result = await adminQuery(
+    `DELETE FROM leads ${clause} RETURNING id`,
+    params
+  );
+  const emails = (emailsResult.rows || []).map((row) => row.email).filter(Boolean);
+  if (emails.length) {
+    await adminQuery("DELETE FROM pending_profiles WHERE email = ANY($1::text[])", [emails]);
+  }
+  await logAudit(req.admin && req.admin.id, "leads_deleted_all", "leads", null, { deleted_count: result.rows.length, filters });
+  res.redirect(`/admin/leads?${new URLSearchParams(filters).toString()}`);
 }));
 
 app.get("/admin/materials", requireAdmin("reader"), asyncHandler(async (req, res) => {

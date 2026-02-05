@@ -1,0 +1,136 @@
+<%- include('partials_header', { title: 'Lead' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Lead</h1>
+        <p class="muted"><%= lead.email || lead.id %></p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/leads">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <p><strong>Nome:</strong> <%= lead.name || '-' %></p>
+          <p><strong>Email:</strong> <%= lead.email || '-' %></p>
+          <p><strong>Empresa:</strong> <%= lead.company || '-' %></p>
+          <p><strong>Telefone:</strong> <%= lead.phone_e164 || '-' %></p>
+        </div>
+        <div>
+          <p><strong>Provider:</strong> <%= lead.provider || '-' %></p>
+          <p><strong>Status:</strong> <%= lead.crm_status || '-' %></p>
+          <p><strong>Origem:</strong> <%= lead.source || '-' %></p>
+          <p><strong>Criado em:</strong> <%= lead.created_at ? new Date(lead.created_at).toLocaleString('pt-BR') : '-' %></p>
+          <p><strong>Atualizado em:</strong> <%= lead.updated_at ? new Date(lead.updated_at).toLocaleString('pt-BR') : '-' %></p>
+        </div>
+      </div>
+    </div>
+
+    <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+      <div class="card form">
+        <h3>Editar lead</h3>
+        <form action="/admin/leads/<%= lead.id %>/update" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <label>Nome
+            <input name="name" value="<%= lead.name || '' %>" maxlength="120" />
+          </label>
+          <label>Empresa
+            <input name="company" value="<%= lead.company || '' %>" maxlength="120" />
+          </label>
+          <label>Telefone/WhatsApp
+            <input name="phone_e164" value="<%= lead.phone_e164 || '' %>" maxlength="40" />
+          </label>
+          <label>Interesses (tags separadas por vírgula)
+            <input name="interest_tags" value="<%= (lead.interest_tags || []).join(', ') %>" />
+          </label>
+          <label>Urgência
+            <select name="urgency">
+              <option value="" <%= !lead.urgency ? 'selected' : '' %>>-</option>
+              <option value="imediato_30d" <%= lead.urgency === 'imediato_30d' ? 'selected' : '' %>>Imediato (30d)</option>
+              <option value="curto_1_3m" <%= lead.urgency === 'curto_1_3m' ? 'selected' : '' %>>Curto (1-3m)</option>
+              <option value="medio_3_6m" <%= lead.urgency === 'medio_3_6m' ? 'selected' : '' %>>Médio (3-6m)</option>
+              <option value="pesquisando" <%= lead.urgency === 'pesquisando' ? 'selected' : '' %>>Pesquisando</option>
+            </select>
+          </label>
+          <label>Próxima ação
+            <select name="next_action_type">
+              <option value="" <%= !lead.next_action_type ? 'selected' : '' %>>-</option>
+              <option value="whatsapp" <%= lead.next_action_type === 'whatsapp' ? 'selected' : '' %>>WhatsApp</option>
+              <option value="email" <%= lead.next_action_type === 'email' ? 'selected' : '' %>>E-mail</option>
+              <option value="ligacao" <%= lead.next_action_type === 'ligacao' ? 'selected' : '' %>>Ligação</option>
+              <option value="reuniao" <%= lead.next_action_type === 'reuniao' ? 'selected' : '' %>>Reunião</option>
+              <option value="enviar_material" <%= lead.next_action_type === 'enviar_material' ? 'selected' : '' %>>Enviar material</option>
+              <option value="sem_acao" <%= lead.next_action_type === 'sem_acao' ? 'selected' : '' %>>Sem ação</option>
+            </select>
+          </label>
+          <label>Quando?
+            <input type="datetime-local" name="next_action_at" value="<%= lead.next_action_at ? new Date(lead.next_action_at).toISOString().slice(0,16) : '' %>" />
+          </label>
+          <label>Notas
+            <textarea name="notes" rows="4"><%= lead.notes || '' %></textarea>
+          </label>
+          <button class="btn" type="submit">Salvar</button>
+        </form>
+      </div>
+
+      <div class="card form">
+        <h3>Pipeline</h3>
+        <form action="/admin/leads/<%= lead.id %>/status" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <label>Status
+            <select name="crm_status">
+              <option value="novo" <%= lead.crm_status === 'novo' ? 'selected' : '' %>>Novo</option>
+              <option value="contatado" <%= lead.crm_status === 'contatado' ? 'selected' : '' %>>Contatado</option>
+              <option value="qualificado" <%= lead.crm_status === 'qualificado' ? 'selected' : '' %>>Qualificado</option>
+              <option value="proposta_enviada" <%= lead.crm_status === 'proposta_enviada' ? 'selected' : '' %>>Proposta enviada</option>
+              <option value="fechado_ganho" <%= lead.crm_status === 'fechado_ganho' ? 'selected' : '' %>>Fechado (ganho)</option>
+              <option value="fechado_perdido" <%= lead.crm_status === 'fechado_perdido' ? 'selected' : '' %>>Fechado (perdido)</option>
+            </select>
+          </label>
+          <button class="btn" type="submit">Atualizar status</button>
+        </form>
+      </div>
+    <% } %>
+
+    <div class="card">
+      <h3>Últimos logins</h3>
+      <% if (!logins.length) { %>
+        <p class="muted">Nenhum login recente.</p>
+      <% } else { %>
+        <ul class="list">
+          <% logins.forEach(function(item){ %>
+            <li><%= item.provider %> — <%= new Date(item.created_at).toLocaleString('pt-BR') %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h3>Downloads recentes</h3>
+      <% if (!downloads.length) { %>
+        <p class="muted">Nenhum download recente.</p>
+      <% } else { %>
+        <ul class="list">
+          <% downloads.forEach(function(item){ %>
+            <li><%= item.material_id %> — <%= new Date(item.created_at).toLocaleString('pt-BR') %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+
+    <% if (adminRole === 'super_admin') { %>
+      <div class="card">
+        <h3>Excluir</h3>
+        <form action="/admin/leads/<%= lead.id %>/delete" method="post">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <button class="btn danger" type="submit" data-confirm="Excluir definitivamente este lead?">Excluir definitivo</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+</section>
+<%- include('partials_footer') %>

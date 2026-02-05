@@ -1,0 +1,28 @@
+<%- include('partials_header', { title: 'Lead rápido' }) %>
+<section class="section">
+  <div class="container">
+    <h1>Lead rápido</h1>
+    <p class="lead">Precisamos desses dados para retorno humano e envio de materiais atualizados. Sem spam.</p>
+
+    <div class="card form">
+      <form method="post" action="/lead-rapido">
+        <input type="hidden" name="next" value="<%= next || '/materiais' %>" />
+        <input type="hidden" name="src" value="<%= src || 'login' %>" />
+        <label>Nome
+          <input name="name" value="<%= values && values.name ? values.name : '' %>" required />
+        </label>
+        <label>Empresa
+          <input name="company" value="<%= values && values.company ? values.company : '' %>" required />
+        </label>
+        <label>Telefone/WhatsApp
+          <input name="phone" value="<%= values && values.phone ? values.phone : '' %>" required />
+        </label>
+        <% if (error) { %>
+          <p class="error"><%= error %></p>
+        <% } %>
+        <button class="btn" type="submit">Salvar e continuar</button>
+      </form>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

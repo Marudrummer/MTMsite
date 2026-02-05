@@ -1,0 +1,193 @@
+<%- include('partials_header', { title: 'Leads (CRM)' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Leads (CRM)</h1>
+        <p class="muted">Cadastros com pipeline e próxima ação.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card form" style="margin-bottom:24px;">
+      <form method="get" action="/admin/leads">
+        <div class="grid-3">
+          <label>Busca
+            <input name="q" value="<%= filters.q %>" placeholder="Nome, e-mail, empresa ou WhatsApp" />
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="novo" <%= filters.status === 'novo' ? 'selected' : '' %>>Novo</option>
+              <option value="contatado" <%= filters.status === 'contatado' ? 'selected' : '' %>>Contatado</option>
+              <option value="qualificado" <%= filters.status === 'qualificado' ? 'selected' : '' %>>Qualificado</option>
+              <option value="proposta_enviada" <%= filters.status === 'proposta_enviada' ? 'selected' : '' %>>Proposta enviada</option>
+              <option value="fechado_ganho" <%= filters.status === 'fechado_ganho' ? 'selected' : '' %>>Fechado (ganho)</option>
+              <option value="fechado_perdido" <%= filters.status === 'fechado_perdido' ? 'selected' : '' %>>Fechado (perdido)</option>
+            </select>
+          </label>
+          <label>Provider
+            <select name="provider">
+              <option value="all" <%= filters.provider === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="google" <%= filters.provider === 'google' ? 'selected' : '' %>>Google</option>
+              <option value="magiclink" <%= filters.provider === 'magiclink' ? 'selected' : '' %>>Magic Link</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>Origem
+            <select name="source">
+              <option value="all" <%= filters.source === 'all' ? 'selected' : '' %>>Todas</option>
+              <option value="login" <%= filters.source === 'login' ? 'selected' : '' %>>Login</option>
+              <option value="materiais" <%= filters.source === 'materiais' ? 'selected' : '' %>>Materiais</option>
+              <option value="nao-sabe" <%= filters.source === 'nao-sabe' ? 'selected' : '' %>>Não sabe</option>
+              <option value="ambos" <%= filters.source === 'ambos' ? 'selected' : '' %>>Ambos</option>
+            </select>
+          </label>
+          <label>Urgência
+            <select name="urgency">
+              <option value="all" <%= filters.urgency === 'all' ? 'selected' : '' %>>Todas</option>
+              <option value="imediato_30d" <%= filters.urgency === 'imediato_30d' ? 'selected' : '' %>>Imediato (30d)</option>
+              <option value="curto_1_3m" <%= filters.urgency === 'curto_1_3m' ? 'selected' : '' %>>Curto (1-3m)</option>
+              <option value="medio_3_6m" <%= filters.urgency === 'medio_3_6m' ? 'selected' : '' %>>Médio (3-6m)</option>
+              <option value="pesquisando" <%= filters.urgency === 'pesquisando' ? 'selected' : '' %>>Pesquisando</option>
+            </select>
+          </label>
+          <label>Próxima ação
+            <select name="next_action_type">
+              <option value="all" <%= filters.next_action_type === 'all' ? 'selected' : '' %>>Todas</option>
+              <option value="whatsapp" <%= filters.next_action_type === 'whatsapp' ? 'selected' : '' %>>WhatsApp</option>
+              <option value="email" <%= filters.next_action_type === 'email' ? 'selected' : '' %>>E-mail</option>
+              <option value="ligacao" <%= filters.next_action_type === 'ligacao' ? 'selected' : '' %>>Ligação</option>
+              <option value="reuniao" <%= filters.next_action_type === 'reuniao' ? 'selected' : '' %>>Reunião</option>
+              <option value="enviar_material" <%= filters.next_action_type === 'enviar_material' ? 'selected' : '' %>>Enviar material</option>
+              <option value="sem_acao" <%= filters.next_action_type === 'sem_acao' ? 'selected' : '' %>>Sem ação</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>De (data)
+            <input type="date" name="from" value="<%= filters.from %>" />
+          </label>
+          <label>Até (data)
+            <input type="date" name="to" value="<%= filters.to %>" />
+          </label>
+          <label style="display:flex;align-items:flex-end;gap:12px;">
+            <span>
+              <input type="checkbox" name="overdue" value="1" <%= filters.overdue === '1' ? 'checked' : '' %> />
+              <span class="muted">Somente vencidas</span>
+            </span>
+            <div class="admin-actions" style="margin-left:auto;">
+              <button class="btn" type="submit">Filtrar</button>
+              <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+                <a class="btn ghost" href="/admin/leads/export.csv?<%= new URLSearchParams(filters).toString() %>">Exportar CSV</a>
+                <a class="btn ghost" href="/admin/leads/export.json?<%= new URLSearchParams(filters).toString() %>">Exportar JSON</a>
+              <% } %>
+            </div>
+          </label>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de leads</h3>
+      <% if (!leads.length) { %>
+        <p class="muted">Nenhum lead encontrado.</p>
+      <% } else { %>
+        <% if (adminRole === 'super_admin') { %>
+          <div class="admin-actions" style="justify-content:flex-end;margin-bottom:12px;gap:8px;">
+            <button class="btn danger" type="submit" form="bulkDeleteLeads" data-confirm="Excluir os leads selecionados?">Excluir selecionados</button>
+            <form method="post" action="/admin/leads/delete-all">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <input type="hidden" name="status" value="<%= filters.status %>" />
+              <input type="hidden" name="provider" value="<%= filters.provider %>" />
+              <input type="hidden" name="source" value="<%= filters.source %>" />
+              <input type="hidden" name="urgency" value="<%= filters.urgency %>" />
+              <input type="hidden" name="next_action_type" value="<%= filters.next_action_type %>" />
+              <input type="hidden" name="overdue" value="<%= filters.overdue %>" />
+              <input type="hidden" name="from" value="<%= filters.from %>" />
+              <input type="hidden" name="to" value="<%= filters.to %>" />
+              <input type="hidden" name="q" value="<%= filters.q %>" />
+              <button class="btn danger" type="submit" data-confirm="Excluir TODOS os leads do filtro atual?">Excluir tudo</button>
+            </form>
+          </div>
+        <% } %>
+
+        <form method="post" action="/admin/leads/delete-selected" id="bulkDeleteLeads">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <input type="hidden" name="status" value="<%= filters.status %>" />
+          <input type="hidden" name="provider" value="<%= filters.provider %>" />
+          <input type="hidden" name="source" value="<%= filters.source %>" />
+          <input type="hidden" name="urgency" value="<%= filters.urgency %>" />
+          <input type="hidden" name="next_action_type" value="<%= filters.next_action_type %>" />
+          <input type="hidden" name="overdue" value="<%= filters.overdue %>" />
+          <input type="hidden" name="from" value="<%= filters.from %>" />
+          <input type="hidden" name="to" value="<%= filters.to %>" />
+          <input type="hidden" name="q" value="<%= filters.q %>" />
+          <div class="table">
+            <div class="table-row table-header">
+              <div>
+                <% if (adminRole === 'super_admin') { %>
+                  <input type="checkbox" id="selectAllLeads" />
+                <% } %>
+              </div>
+              <div>Nome</div>
+              <div>Status</div>
+              <div>Origem</div>
+              <div>Próxima ação</div>
+              <div>Ações</div>
+            </div>
+            <% leads.forEach(function(lead){ %>
+              <div class="table-row">
+                <div>
+                  <% if (adminRole === 'super_admin') { %>
+                    <input type="checkbox" name="ids" value="<%= lead.id %>" class="lead-select" />
+                  <% } %>
+                </div>
+                <div>
+                  <strong><%= lead.name || 'Sem nome' %></strong>
+                  <div class="muted"><%= lead.email || '' %></div>
+                  <div class="muted"><%= lead.company || '' %></div>
+                </div>
+                <div><%= lead.crm_status || 'novo' %></div>
+                <div><%= lead.source || 'login' %></div>
+                <div class="muted">
+                  <%= lead.next_action_type || '-' %>
+                  <% if (lead.next_action_at) { %>
+                    <div><%= new Date(lead.next_action_at).toLocaleString('pt-BR') %></div>
+                  <% } %>
+                </div>
+                <div class="admin-actions">
+                  <a class="btn ghost" href="/admin/leads/<%= lead.id %>">Ver</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </form>
+      <% } %>
+    </div>
+
+    <% const totalPages = Math.max(1, Math.ceil(total / perPage)); %>
+    <% if (totalPages > 1) { %>
+      <div class="pagination">
+        <% for (let p = 1; p <= totalPages; p++) { %>
+          <a class="btn <%= p === page ? 'primary' : 'ghost' %>" href="/admin/leads?<%= new URLSearchParams({ ...filters, page: p }).toString() %>"><%= p %></a>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<script>
+  (function () {
+    const selectAll = document.getElementById('selectAllLeads');
+    if (!selectAll) return;
+    const checkboxes = Array.from(document.querySelectorAll('.lead-select'));
+    selectAll.addEventListener('change', () => {
+      checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+    });
+  })();
+</script>
+<%- include('partials_footer') %>

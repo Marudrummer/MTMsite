@@ -26,14 +26,18 @@
     return stored || "/";
   }
 
+  function getIntentSource() {
+    return localStorage.getItem("mtm_src") || "login";
+  }
+
   function detectProvider(user) {
-    const metaProviders = user.app_metadata && user.app_metadata.providers;
-    if (Array.isArray(metaProviders) && metaProviders.includes("google")) {
-      return "google";
-    }
     const metaProvider = (user.app_metadata && user.app_metadata.provider) || "";
     if (metaProvider) {
       return metaProvider === "email" ? "magiclink" : metaProvider;
+    }
+    const metaProviders = user.app_metadata && user.app_metadata.providers;
+    if (Array.isArray(metaProviders) && metaProviders.includes("google")) {
+      return "google";
     }
     if (Array.isArray(user.identities) && user.identities.length) {
       const identityProvider = user.identities[0].provider;
@@ -66,12 +70,6 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-
-    await fetch("/api/profile/login-event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider })
-    });
   }
 
   async function ensureProfile() {
@@ -82,12 +80,7 @@
     await completeProfile(user);
 
     const onLogin = window.location.pathname === "/login";
-    const nextTarget = getNextTarget();
-    if (onLogin) {
-      localStorage.removeItem("mtm_next");
-      window.location.href = nextTarget;
-      return;
-    }
+    if (onLogin) return;
   }
 
   async function initAuthState() {
@@ -97,11 +90,42 @@
     window.dispatchEvent(new CustomEvent("mtm-auth", { detail: { session } }));
   }
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  async function logLoginOnce(session) {
+    if (!session || !session.access_token) return;
+    const key = "mtm_login_logged_" + session.access_token.slice(0, 20);
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    const provider = detectProvider(session.user);
+    await fetch("/api/profile/login-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider })
+    });
+  }
+
+  async function handlePostLogin(session) {
+    const nextTarget = getNextTarget();
+    const src = getIntentSource();
+    const resp = await fetch("/auth/need-lead");
+    const data = await resp.json();
+    if (data && data.needLead) {
+      window.location.href = `/lead-rapido?next=${encodeURIComponent(nextTarget)}&src=${encodeURIComponent(src)}`;
+      return;
+    }
+    localStorage.removeItem("mtm_next");
+    localStorage.removeItem("mtm_src");
+    window.location.href = nextTarget;
+  }
+
+  supabase.auth.onAuthStateChange(async (event, session) => {
     setAuthCookie(session);
     window.dispatchEvent(new CustomEvent("mtm-auth", { detail: { session } }));
     if (session) {
-      ensureProfile();
+      await ensureProfile();
+      if (event === "SIGNED_IN") {
+        await logLoginOnce(session);
+        await handlePostLogin(session);
+      }
     }
   });
 
@@ -117,24 +141,12 @@
       loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const email = loginForm.querySelector("input[name='email']").value.trim();
-        const name = loginForm.querySelector("input[name='name']").value.trim();
-        const company = loginForm.querySelector("input[name='company']").value.trim();
-        const phone = loginForm.querySelector("input[name='phone']").value.trim();
-        if (!email || !name || !company || !phone) {
-          if (loginStatus) loginStatus.textContent = "Preencha todos os campos antes de enviar o link.";
+        if (!email) {
+          if (loginStatus) loginStatus.textContent = "Informe um e-mail válido.";
           return;
         }
         const nextTarget = getNextTarget();
         const redirectTo = `${window.location.origin}/login?next=${encodeURIComponent(nextTarget)}`;
-        const pendingResponse = await fetch("/api/pending-profile", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, name, company, phone })
-        });
-        if (!pendingResponse.ok) {
-          if (loginStatus) loginStatus.textContent = "Erro ao salvar dados. Tente novamente.";
-          return;
-        }
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo }
@@ -179,8 +191,17 @@
     }
 
     if (logoutBtn) {
-      logoutBtn.addEventListener("click", async () => {
-        await supabase.auth.signOut();
+      logoutBtn.addEventListener("click", async (e) => {
+        if (e && typeof e.preventDefault === "function") e.preventDefault();
+        localStorage.setItem("mtm_force_logout", "1");
+        try {
+          await supabase.auth.signOut({ scope: "global" });
+        } catch (e) {
+          // best-effort
+        }
+        document.cookie = "mtm_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax";
+        localStorage.removeItem("mtm_next");
+        localStorage.removeItem("mtm_src");
         window.location.href = "/";
       });
     }
@@ -209,6 +230,19 @@
     }
 
     initAuthState().then(async () => {
+      if (localStorage.getItem("mtm_force_logout")) {
+        try {
+          await supabase.auth.signOut({ scope: "global" });
+        } catch (e) {
+          // best-effort
+        }
+        document.cookie = "mtm_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax";
+        localStorage.removeItem("mtm_force_logout");
+        localStorage.removeItem("mtm_next");
+        localStorage.removeItem("mtm_src");
+        window.location.href = "/";
+        return;
+      }
       const { data: userData } = await supabase.auth.getUser();
       const user = userData && userData.user;
       if (user) {

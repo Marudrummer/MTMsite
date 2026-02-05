@@ -4,7 +4,7 @@
     <div class="admin-header">
       <div>
         <h1>Cadastros</h1>
-        <p class="muted">Usuários cadastrados no site.</p>
+        <p class="muted">Registros brutos de login no site.</p>
       </div>
       <div class="admin-actions">
         <a class="btn ghost" href="/admin">Voltar</a>
@@ -16,7 +16,7 @@
       <form method="get" action="/admin/profiles">
         <div class="grid-3">
           <label>Busca
-            <input name="q" value="<%= filters.q %>" placeholder="Nome, e-mail ou empresa" />
+            <input name="q" value="<%= filters.q %>" placeholder="E-mail" />
           </label>
           <label>Provider
             <select name="provider">
@@ -25,13 +25,7 @@
               <option value="magiclink" <%= filters.provider === 'magiclink' ? 'selected' : '' %>>Magic Link</option>
             </select>
           </label>
-          <label>Status
-            <select name="status">
-              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
-              <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Ativo</option>
-              <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inativo</option>
-            </select>
-          </label>
+          <div></div>
         </div>
         <div class="grid-3">
           <label>De (data)
@@ -56,36 +50,63 @@
       <% if (!profiles.length) { %>
         <p class="muted">Nenhum cadastro encontrado.</p>
       <% } else { %>
-        <div class="table">
-          <div class="table-row table-header">
-            <div>Nome</div>
-            <div>Provider</div>
-          <div>Status</div>
-          <div>Cadastro</div>
-          <div>Logins</div>
-          <div>Ações</div>
+        <% if (adminRole === 'super_admin') { %>
+          <div class="admin-actions" style="justify-content:flex-end;margin-bottom:12px;gap:8px;">
+            <button class="btn danger" type="submit" form="bulkDeleteTable" data-confirm="Excluir os cadastros selecionados?">Excluir selecionados</button>
+            <form method="post" action="/admin/profiles/delete-all">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <input type="hidden" name="provider" value="<%= filters.provider %>" />
+              <input type="hidden" name="from" value="<%= filters.from %>" />
+              <input type="hidden" name="to" value="<%= filters.to %>" />
+              <input type="hidden" name="q" value="<%= filters.q %>" />
+              <button class="btn danger" type="submit" data-confirm="Excluir TODOS os cadastros do filtro atual?">Excluir tudo</button>
+            </form>
           </div>
-          <% profiles.forEach(function(profile){ %>
-            <div class="table-row">
+        <% } %>
+
+        <form method="post" action="/admin/profiles/delete-selected" id="bulkDeleteTable">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <input type="hidden" name="provider" value="<%= filters.provider %>" />
+          <input type="hidden" name="from" value="<%= filters.from %>" />
+          <input type="hidden" name="to" value="<%= filters.to %>" />
+          <input type="hidden" name="q" value="<%= filters.q %>" />
+          <div class="table">
+            <div class="table-row table-header">
               <div>
-                <strong><%= profile.name || 'Sem nome' %></strong>
-                <div class="muted"><%= profile.email || '' %></div>
-                <div class="muted"><%= profile.company || '' %></div>
+                <% if (adminRole === 'super_admin') { %>
+                  <input type="checkbox" id="selectAllLogins" />
+                <% } %>
               </div>
-              <div><%= profile.provider || '-' %></div>
-              <div><%= profile.is_active ? 'ativo' : 'inativo' %></div>
-              <div class="muted">
-                <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %>
-              </div>
-              <div class="muted">
-                <%= profile.login_count || 0 %>
-              </div>
-              <div class="admin-actions">
-                <a class="btn ghost" href="/admin/profiles/<%= profile.id %>">Ver</a>
-              </div>
+              <div>E-mail</div>
+              <div>Provider</div>
+              <div>Cadastro</div>
+              <div>IP</div>
+              <div>Ações</div>
             </div>
-          <% }) %>
-        </div>
+            <% profiles.forEach(function(profile){ %>
+              <div class="table-row">
+                <div>
+                  <% if (adminRole === 'super_admin') { %>
+                    <input type="checkbox" name="ids" value="<%= profile.id %>" class="login-select" />
+                  <% } %>
+                </div>
+                <div>
+                  <strong><%= profile.email || '-' %></strong>
+                </div>
+                <div><%= profile.provider || '-' %></div>
+                <div class="muted">
+                  <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %>
+                </div>
+                <div class="muted">
+                  <%= profile.ip || '-' %>
+                </div>
+                <div class="admin-actions">
+                  <a class="btn ghost" href="/admin/profiles/<%= profile.id %>">Ver</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </form>
       <% } %>
     </div>
 
@@ -99,4 +120,14 @@
     <% } %>
   </div>
 </section>
+<script>
+  (function () {
+    const selectAll = document.getElementById('selectAllLogins');
+    if (!selectAll) return;
+    const checkboxes = Array.from(document.querySelectorAll('.login-select'));
+    selectAll.addEventListener('change', () => {
+      checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+    });
+  })();
+</script>
 <%- include('partials_footer') %>
