@@ -1,0 +1,66 @@
+<%- include('partials_header', { title: 'Briefing' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Briefing</h1>
+        <p class="muted">Detalhes do briefing recebido.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/briefings">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="grid-2 admin-grid">
+      <div class="card">
+        <h3>Dados principais</h3>
+        <p><strong>Nome:</strong> <%= briefing.name || '-' %></p>
+        <p><strong>E-mail:</strong> <%= briefing.email || '-' %></p>
+        <p><strong>Telefone:</strong> <%= briefing.phone || '-' %></p>
+        <p><strong>Cidade:</strong> <%= briefing.city || '-' %></p>
+        <p><strong>Status:</strong> <%= briefing.status || '-' %></p>
+        <p><strong>Origem:</strong> <%= briefing.source || '-' %></p>
+        <p><strong>Recebido em:</strong> <%= briefing.created_at ? new Date(briefing.created_at).toLocaleString('pt-BR') : '-' %></p>
+      </div>
+
+      <div class="card">
+        <h3>Detalhes do projeto</h3>
+        <p><strong>Compra/Locação:</strong> <%= briefing.deal_type || '-' %></p>
+        <p><strong>Locação (dias/datas):</strong> <%= briefing.rental_details || '-' %></p>
+        <p><strong>Local do evento:</strong> <%= briefing.event_location || '-' %></p>
+        <p><strong>Ideia:</strong></p>
+        <p class="muted"><%= briefing.idea || '-' %></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Anexos</h3>
+      <% if (!attachments.length) { %>
+        <p class="muted">Nenhum anexo enviado.</p>
+      <% } else { %>
+        <div class="table">
+          <div class="table-row table-header">
+            <div>Arquivo</div>
+            <div>Tipo</div>
+            <div>Tamanho</div>
+            <div>Enviado em</div>
+            <div>Ações</div>
+          </div>
+          <% attachments.forEach(function(item){ %>
+            <div class="table-row">
+              <div><strong><%= item.file_name %></strong></div>
+              <div class="muted"><%= item.mime_type %></div>
+              <div class="muted"><%= item.file_size ? (item.file_size / 1024 / 1024).toFixed(1) + 'MB' : '-' %></div>
+              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
+              <div class="admin-actions">
+                <a class="btn ghost" href="<%= item.public_url %>" target="_blank" rel="noopener">Abrir</a>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>
+<%- include('partials_footer') %>

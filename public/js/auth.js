@@ -88,6 +88,7 @@
     const session = sessionData && sessionData.session;
     setAuthCookie(session);
     window.dispatchEvent(new CustomEvent("mtm-auth", { detail: { session } }));
+    return session || null;
   }
 
   async function logLoginOnce(session) {
@@ -229,7 +230,13 @@
       });
     }
 
-    initAuthState().then(async () => {
+    let handledLoginRedirect = false;
+    initAuthState().then(async (session) => {
+      if (session && window.location.pathname === "/login" && !handledLoginRedirect) {
+        handledLoginRedirect = true;
+        await handlePostLogin(session);
+        return;
+      }
       if (localStorage.getItem("mtm_force_logout")) {
         try {
           await supabase.auth.signOut({ scope: "global" });

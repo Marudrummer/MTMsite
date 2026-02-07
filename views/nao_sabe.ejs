@@ -16,7 +16,7 @@
     </div>
     <div class="card form">
       <h3>Prefiro enviar minha ideia por escrito</h3>
-      <form action="/qualificador" method="post">
+      <form action="/qualificador" method="post" data-briefing-form>
         <label>Nome
           <input name="name" required />
         </label>
@@ -48,6 +48,12 @@
         <label>Sua ideia
           <textarea name="idea" rows="5" required></textarea>
         </label>
+        <label>Anexos (opcional)
+          <input id="briefingFiles" type="file" name="files" multiple />
+          <small class="muted">Até <%= uploadMaxFiles %> arquivos, <%= uploadMaxMb %>MB cada. Tipos: PDF, texto, imagens (PNG/JPEG/WEBP) e áudio (MP3/M4A/WAV).</small>
+        </label>
+        <div class="muted" data-briefing-files></div>
+        <div class="muted" data-briefing-status></div>
         <button class="btn primary" type="submit">Enviar ideia</button>
         <% if (sent) { %>
           <p class="success">Recebido! Em breve alguém do time humano entra em contato.</p>
@@ -56,4 +62,11 @@
     </div>
   </div>
 </section>
+<script>
+  window.MTM_BRIEFING_CONFIG = {
+    bucket: "<%= briefingsBucket %>",
+    maxFiles: <%= uploadMaxFiles %>,
+    maxMb: <%= uploadMaxMb %>
+  };
+</script>
 <%- include('partials_footer') %>

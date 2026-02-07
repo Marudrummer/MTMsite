@@ -1,0 +1,97 @@
+<%- include('partials_header', { title: 'Briefings' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Briefings</h1>
+        <p class="muted">Solicitações recebidas em “Não sabe o que fazer?”.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card form" style="margin-bottom:24px;">
+      <form method="get" action="/admin/briefings">
+        <div class="grid-3">
+          <label>Busca
+            <input name="q" value="<%= filters.q %>" placeholder="Nome, e-mail, telefone, cidade ou ideia" />
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="all" <%= filters.status === 'all' ? 'selected' : '' %>>Todos</option>
+              <option value="new" <%= filters.status === 'new' ? 'selected' : '' %>>Novo</option>
+              <option value="in_progress" <%= filters.status === 'in_progress' ? 'selected' : '' %>>Em andamento</option>
+              <option value="done" <%= filters.status === 'done' ? 'selected' : '' %>>Concluído</option>
+            </select>
+          </label>
+          <label>Origem
+            <select name="source">
+              <option value="all" <%= filters.source === 'all' ? 'selected' : '' %>>Todas</option>
+              <option value="nao-sabe" <%= filters.source === 'nao-sabe' ? 'selected' : '' %>>Não sabe</option>
+              <option value="site_form" <%= filters.source === 'site_form' ? 'selected' : '' %>>Site</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid-3">
+          <label>De (data)
+            <input type="date" name="from" value="<%= filters.from %>" />
+          </label>
+          <label>Até (data)
+            <input type="date" name="to" value="<%= filters.to %>" />
+          </label>
+          <div class="admin-actions" style="align-items:flex-end;">
+            <button class="btn" type="submit">Filtrar</button>
+            <% if (adminRole === 'editor' || adminRole === 'admin' || adminRole === 'super_admin') { %>
+              <a class="btn ghost" href="/admin/briefings/export.csv?<%= new URLSearchParams(filters).toString() %>">Exportar CSV</a>
+              <a class="btn ghost" href="/admin/briefings/export.json?<%= new URLSearchParams(filters).toString() %>">Exportar JSON</a>
+            <% } %>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Lista de briefings</h3>
+      <% if (!briefings.length) { %>
+        <p class="muted">Nenhum briefing encontrado.</p>
+      <% } else { %>
+        <div class="table">
+          <div class="table-row table-header">
+            <div>Nome</div>
+            <div>E-mail</div>
+            <div>Telefone</div>
+            <div>Status</div>
+            <div>Origem</div>
+            <div>Recebido</div>
+            <div>Ações</div>
+          </div>
+          <% briefings.forEach(function(item){ %>
+            <div class="table-row">
+              <div><strong><%= item.name || '-' %></strong></div>
+              <div><%= item.email || '-' %></div>
+              <div><%= item.phone || '-' %></div>
+              <div class="muted"><%= item.status || '-' %></div>
+              <div class="muted"><%= item.source || '-' %></div>
+              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
+              <div class="admin-actions">
+                <a class="btn ghost" href="/admin/briefings/<%= item.id %>">Ver</a>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <% const totalPages = Math.max(1, Math.ceil(total / perPage)); %>
+    <% if (totalPages > 1) { %>
+      <div class="pagination">
+        <% for (let p = 1; p <= totalPages; p++) { %>
+          <a class="btn <%= p === page ? 'primary' : 'ghost' %>" href="/admin/briefings?<%= new URLSearchParams({ ...filters, page: p }).toString() %>"><%= p %></a>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</section>
+<%- include('partials_footer') %>

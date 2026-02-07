@@ -34,6 +34,10 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_STORAGE_BUCKET_BRIEFINGS = process.env.SUPABASE_STORAGE_BUCKET_BRIEFINGS || "briefings";
+const UPLOAD_MAX_FILES = Number(process.env.UPLOAD_MAX_FILES || 5);
+const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 25);
+const ENABLE_CLIENT_CONFIRMATION_EMAIL = (process.env.ENABLE_CLIENT_CONFIRMATION_EMAIL || "true") !== "false";
 const MATERIALS_BUCKET = process.env.MATERIALS_BUCKET || "materials";
 const MATERIALS_SIGNED_URL_TTL = Number(process.env.MATERIALS_SIGNED_URL_TTL || 600);
 const DOWNLOAD_RATE_LIMIT = { windowMs: 10 * 60 * 1000, max: 30 };
@@ -94,6 +98,10 @@ app.use(async (req, res, next) => {
   res.locals.whatsappPhone = WHATSAPP_PHONE;
   res.locals.supabaseUrl = SUPABASE_URL;
   res.locals.supabaseAnonKey = SUPABASE_ANON_KEY;
+  res.locals.briefingsBucket = SUPABASE_STORAGE_BUCKET_BRIEFINGS;
+  res.locals.uploadMaxFiles = UPLOAD_MAX_FILES;
+  res.locals.uploadMaxMb = UPLOAD_MAX_MB;
+  res.locals.enableClientConfirmationEmail = ENABLE_CLIENT_CONFIRMATION_EMAIL;
   next();
 });
 
@@ -438,6 +446,18 @@ function normalizePhoneBR(value) {
   return `+55${normalized}`;
 }
 
+function normalizeEmail(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^=+/, "");
+}
+
+function isValidEmail(value) {
+  const text = String(value || "").trim();
+  return Boolean(text && /.+@.+\..+/.test(text));
+}
+
 async function getLeadByProfileOrEmail(profileId, email) {
   const { rows } = await adminQuery(
     "SELECT * FROM leads WHERE profile_id = $1 OR email = $2 LIMIT 1",
@@ -494,6 +514,35 @@ function buildLeadFilters(query) {
   }
   if (query.q) {
     where.push(`(name ILIKE $${idx} OR email ILIKE $${idx} OR company ILIKE $${idx} OR phone_e164 ILIKE $${idx})`);
+    params.push(`%${query.q}%`);
+    idx += 1;
+  }
+  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return { clause, params };
+}
+
+function buildBriefingFilters(query) {
+  const where = [];
+  const params = [];
+  let idx = 1;
+  if (query.status && query.status !== "all") {
+    where.push(`status = $${idx++}`);
+    params.push(query.status);
+  }
+  if (query.source && query.source !== "all") {
+    where.push(`source = $${idx++}`);
+    params.push(query.source);
+  }
+  if (query.from) {
+    where.push(`created_at >= $${idx++}`);
+    params.push(query.from);
+  }
+  if (query.to) {
+    where.push(`created_at <= $${idx++}`);
+    params.push(query.to);
+  }
+  if (query.q) {
+    where.push(`(name ILIKE $${idx} OR email ILIKE $${idx} OR phone ILIKE $${idx} OR city ILIKE $${idx} OR idea ILIKE $${idx})`);
     params.push(`%${query.q}%`);
     idx += 1;
   }
@@ -808,6 +857,85 @@ app.get("/nao-sabe", requireUserAuth, requireLeadComplete, (req, res) => {
     sent: req.query.sent === "1"
   });
 });
+
+app.post("/briefings/:id/attachments", requireUserAuth, requireLeadComplete, asyncHandler(async (req, res) => {
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const payload = decodeJwtPayload(token);
+  if (!payload || !payload.email) {
+    return res.status(401).json({ error: "Não autenticado." });
+  }
+  const briefingId = String(req.params.id || "").trim();
+  const email = normalizeEmail(payload.email);
+  const {
+    file_name,
+    mime_type,
+    file_size,
+    storage_bucket,
+    storage_path,
+    public_url
+  } = req.body || {};
+
+  const allowedTypes = [
+    "application/pdf",
+    "text/plain",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/wav"
+  ];
+
+  if (!briefingId || !file_name || !mime_type || !storage_path || !public_url) {
+    return res.status(400).json({ error: "Dados incompletos." });
+  }
+  if (!allowedTypes.includes(String(mime_type))) {
+    return res.status(400).json({ error: "Tipo de arquivo não permitido." });
+  }
+  const sizeNumber = Number(file_size || 0);
+  if (!Number.isFinite(sizeNumber) || sizeNumber <= 0) {
+    return res.status(400).json({ error: "Tamanho inválido." });
+  }
+  if (sizeNumber > UPLOAD_MAX_MB * 1024 * 1024) {
+    return res.status(400).json({ error: "Arquivo acima do limite." });
+  }
+  if (storage_bucket !== SUPABASE_STORAGE_BUCKET_BRIEFINGS) {
+    return res.status(400).json({ error: "Bucket inválido." });
+  }
+  if (!String(storage_path).startsWith(`briefings/${briefingId}/`)) {
+    return res.status(400).json({ error: "Caminho inválido." });
+  }
+
+  const { rows } = await adminQuery(
+    "SELECT id, email FROM briefings WHERE id = $1 LIMIT 1",
+    [briefingId]
+  );
+  const briefing = rows[0];
+  if (!briefing) {
+    return res.status(404).json({ error: "Briefing não encontrado." });
+  }
+  if (normalizeEmail(briefing.email) !== email) {
+    return res.status(403).json({ error: "Acesso negado." });
+  }
+
+  await adminQuery(
+    `INSERT INTO briefing_attachments
+     (briefing_id, file_name, mime_type, file_size, storage_bucket, storage_path, public_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      briefingId,
+      String(file_name).trim(),
+      String(mime_type).trim(),
+      sizeNumber,
+      String(storage_bucket).trim(),
+      String(storage_path).trim(),
+      String(public_url).trim()
+    ]
+  );
+
+  res.json({ ok: true });
+}));
 
 app.get("/admin/login", asyncHandler(async (req, res) => {
   const token = req.cookies && req.cookies.mtm_admin_session;
@@ -1330,6 +1458,112 @@ app.post("/admin/leads/delete-all", requireAdmin("super_admin"), requireAdminCsr
   res.redirect(`/admin/leads?${new URLSearchParams(filters).toString()}`);
 }));
 
+app.get("/admin/briefings", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const perPage = 30;
+  const offset = (page - 1) * perPage;
+  const filters = {
+    status: req.query.status || "all",
+    source: req.query.source || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildBriefingFilters(filters);
+  const countResult = await adminQuery(
+    `SELECT COUNT(*)::int AS count FROM briefings ${clause}`,
+    params
+  );
+  const total = countResult.rows[0]?.count || 0;
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, phone, city, status, source, created_at
+     FROM briefings
+     ${clause}
+     ORDER BY created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, perPage, offset]
+  );
+  res.render("admin_briefings", {
+    briefings: rowsResult.rows || [],
+    filters,
+    page,
+    total,
+    perPage
+  });
+}));
+
+app.get("/admin/briefings/export.csv", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.query.status || "all",
+    source: req.query.source || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildBriefingFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, phone, city, status, source, idea, deal_type, rental_details, event_location, created_at
+     FROM briefings
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  const header = ["id", "name", "email", "phone", "city", "status", "source", "idea", "deal_type", "rental_details", "event_location", "created_at"];
+  const lines = [header.join(",")];
+  rowsResult.rows.forEach((row) => {
+    const values = header.map((key) => {
+      const value = row[key] === null || row[key] === undefined ? "" : String(row[key]);
+      const escaped = value.replace(/"/g, '""');
+      return `"${escaped}"`;
+    });
+    lines.push(values.join(","));
+  });
+  await logAudit(req.admin && req.admin.id, "briefings_export_csv", "briefings", null, { filters });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=briefings.csv");
+  res.send(lines.join("\n"));
+}));
+
+app.get("/admin/briefings/export.json", requireAdmin("editor"), asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.query.status || "all",
+    source: req.query.source || "all",
+    from: req.query.from || "",
+    to: req.query.to || "",
+    q: String(req.query.q || "").trim()
+  };
+  const { clause, params } = buildBriefingFilters(filters);
+  const rowsResult = await adminQuery(
+    `SELECT id, name, email, phone, city, status, source, idea, deal_type, rental_details, event_location, created_at
+     FROM briefings
+     ${clause}
+     ORDER BY created_at DESC`,
+    params
+  );
+  await logAudit(req.admin && req.admin.id, "briefings_export_json", "briefings", null, { filters });
+  res.json(rowsResult.rows || []);
+}));
+
+app.get("/admin/briefings/:id", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const { rows } = await adminQuery(
+    "SELECT * FROM briefings WHERE id = $1 LIMIT 1",
+    [req.params.id]
+  );
+  const briefing = rows[0];
+  if (!briefing) return res.status(404).render("404");
+  const attachmentsResult = await adminQuery(
+    `SELECT * FROM briefing_attachments
+     WHERE briefing_id = $1
+     ORDER BY created_at DESC`,
+    [req.params.id]
+  );
+  await logAudit(req.admin && req.admin.id, "briefing_viewed", "briefings", req.params.id, {});
+  res.render("admin_briefing_view", {
+    briefing,
+    attachments: attachmentsResult.rows || []
+  });
+}));
+
 app.get("/admin/materials", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const filters = {
     status: req.query.status || "all",
@@ -1723,11 +1957,16 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   if (website) return res.redirect("/nao-sabe");
   if (!name || !email || !idea) return res.redirect("/nao-sabe");
   if (!deal_type) return res.redirect("/nao-sabe");
+  if (!pool) return res.status(500).json({ error: "Banco não configurado." });
+  const normalizedEmail = normalizeEmail(email);
+  const idempotencyKey = crypto.randomUUID();
   const payload = {
+    idempotency_key: idempotencyKey,
+    source: "nao-sabe",
     channel: "site_form",
     phone: phone || "",
     name: name || "",
-    email: email || "",
+    email: normalizedEmail || "",
     city: city || "",
     answers: {
       idea: idea || "",
@@ -1736,38 +1975,98 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       event_location: event_location || ""
     },
     summary: "",
-    status: "WAITING_CONTACT"
+    status: "new"
   };
-  if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const subject = "Briefing enviado pelo site (Não sabe o que fazer?)";
-    const text = [
-      `Nome: ${name || ""}`,
-      `Email: ${email || ""}`,
-      `Telefone: ${phone || ""}`,
-      `Cidade: ${city || ""}`,
-      `Compra/Locação: ${deal_type || ""}`,
-      `Locação (dias/datas): ${rental_details || ""}`,
-      `Local do evento: ${event_location || ""}`,
+  const insertResult = await adminQuery(
+    `INSERT INTO briefings
+     (idempotency_key, source, status, name, email, phone, city, idea, deal_type, rental_details, event_location, summary, payload)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     RETURNING id`,
+    [
+      idempotencyKey,
+      "nao-sabe",
+      "new",
+      String(name || "").trim(),
+      normalizedEmail,
+      String(phone || "").trim(),
+      String(city || "").trim(),
+      String(idea || "").trim(),
+      String(deal_type || "").trim(),
+      String(rental_details || "").trim(),
+      String(event_location || "").trim(),
       "",
-      "Ideia:",
-      `${idea || ""}`
-    ].join("\n");
+      payload
+    ]
+  );
+  const briefingId = insertResult.rows[0] && insertResult.rows[0].id;
+
+  const wantsJson = (req.headers.accept || "").includes("application/json") ||
+    String(req.headers["x-requested-with"] || "").toLowerCase() === "xmlhttprequest";
+  if (wantsJson) {
+    res.json({ ok: true, briefing_id: briefingId });
+  } else {
+    res.redirect("/nao-sabe?sent=1");
+  }
+
+  setImmediate(async () => {
     try {
-      await mailer.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
-        subject,
-        text
-      });
-      console.log("Email briefing enviado com sucesso.");
+      if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        const subject = "Briefing enviado pelo site (Não sabe o que fazer?)";
+        const text = [
+          `Nome: ${name || ""}`,
+          `Email: ${normalizedEmail || ""}`,
+          `Telefone: ${phone || ""}`,
+          `Cidade: ${city || ""}`,
+          `Compra/Locação: ${deal_type || ""}`,
+          `Locação (dias/datas): ${rental_details || ""}`,
+          `Local do evento: ${event_location || ""}`,
+          "",
+          "Ideia:",
+          `${idea || ""}`
+        ].join("\n");
+        await mailer.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: process.env.NOTIFY_EMAIL || process.env.SMTP_USER,
+          subject,
+          text
+        });
+        console.log("Email briefing enviado com sucesso.");
+      } else {
+        console.warn("SMTP não configurado. Briefing não enviado por email.");
+      }
     } catch (err) {
       console.error("Email briefing falhou:", err && err.message ? err.message : err);
     }
-  } else {
-    console.warn("SMTP não configurado. Briefing não enviado por email.");
-  }
-  await sendToN8n(payload);
-  res.redirect("/nao-sabe?sent=1");
+
+    if (ENABLE_CLIENT_CONFIRMATION_EMAIL && mailer && isValidEmail(normalizedEmail)) {
+      const subject = "Recebemos seu briefing — MTM Solution";
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const text = [
+        `Olá, ${name || "tudo bem"}!`,
+        "",
+        "Recebemos seu briefing e já estamos analisando.",
+        "Em breve um especialista da MTM Solution entrará em contato com os próximos passos.",
+        "",
+        `Enquanto isso, você pode conhecer mais em: ${baseUrl}`,
+        "",
+        "Obrigado,",
+        "Equipe MTM Solution"
+      ].join("\n");
+      try {
+        await mailer.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: normalizedEmail,
+          subject,
+          text
+        });
+        console.log("Email confirmação enviado com sucesso.");
+      } catch (err) {
+        console.error("Email confirmação falhou:", err && err.message ? err.message : err);
+      }
+    }
+
+    await sendToN8n({ ...payload, briefing_id: briefingId });
+  });
 }));
 
 app.use((err, req, res, next) => {

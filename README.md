@@ -49,6 +49,26 @@ npm install
 npm start
 ```
 
+## n8n local (Docker)
+1) Suba o n8n:
+```
+docker compose up -d
+```
+
+2) Abra o n8n:
+```
+http://localhost:5678
+```
+
+3) Crie um webhook no n8n com o caminho `mtm-briefing`.
+
+4) Configure no `.env` (local) e na Vercel:
+```
+N8N_WEBHOOK_URL=http://localhost:5678/webhook/mtm-briefing
+```
+
+5) Teste o envio pelo formulário `/nao-sabe` (rota `/qualificador`).
+
 ## Vercel
 - Configure as env vars no projeto da Vercel.
 - Faça o deploy normalmente.
@@ -98,6 +118,27 @@ Exportação:
 3) Configure `SUPABASE_SERVICE_ROLE_KEY` na Vercel (somente server).
 4) Acesse `/admin/materials` para enviar e publicar arquivos.
 5) A rota `/materiais` lista apenas materiais publicados.
+
+## Briefings (n8n)
+1) Execute `db/briefings_schema.sql` no Supabase SQL Editor.
+2) O formulário `/nao-sabe` envia para o n8n via `N8N_WEBHOOK_URL`.
+
+## Briefings + Anexos (Storage)
+1) Execute `db/briefings_attachments_schema.sql` no Supabase SQL Editor.
+2) Crie o bucket `briefings` no Supabase Storage como **PUBLIC**.
+3) Configure as env vars:
+```
+SUPABASE_STORAGE_BUCKET_BRIEFINGS=briefings
+UPLOAD_MAX_FILES=5
+UPLOAD_MAX_MB=25
+ENABLE_CLIENT_CONFIRMATION_EMAIL=true
+```
+4) Envie um briefing em `/nao-sabe` com anexos.
+
+### Tradeoff (bucket público)
+- Arquivos ficam acessíveis via URL pública.
+- Usamos caminhos não adivinháveis e mostramos links apenas no admin.
+- Bucket privado com signed URLs fica para fase futura.
 
 ## Leads (CRM)
 1) Execute `db/leads_crm_schema.sql` no Supabase SQL Editor.
