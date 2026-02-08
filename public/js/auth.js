@@ -203,7 +203,7 @@
         document.cookie = "mtm_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=lax";
         localStorage.removeItem("mtm_next");
         localStorage.removeItem("mtm_src");
-        window.location.href = "/";
+        window.location.replace("/");
       });
     }
 
@@ -268,7 +268,8 @@
       }, inactivityLimitMs);
     };
 
-    ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach((evt) => {
+    // Logout only on pointer inactivity (mouse/touch/scroll) for 1 minute.
+    ["mousemove", "pointermove", "touchstart", "scroll"].forEach((evt) => {
       window.addEventListener(evt, resetTimer, { passive: true });
     });
 
