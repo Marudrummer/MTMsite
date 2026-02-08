@@ -135,6 +135,22 @@
     selectAll.addEventListener('change', () => {
       checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
     });
+
+    const form = document.getElementById('bulkDeleteBriefings');
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        const selected = checkboxes.filter((cb) => cb.checked);
+        if (!selected.length) {
+          event.preventDefault();
+          alert('Selecione ao menos um briefing para excluir.');
+          return;
+        }
+        const ok = window.confirm(`Excluir ${selected.length} briefing(s) selecionado(s)?`);
+        if (!ok) {
+          event.preventDefault();
+        }
+      });
+    }
   })();
 </script>
 <%- include('partials_footer') %>
