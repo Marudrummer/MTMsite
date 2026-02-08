@@ -106,7 +106,7 @@
                 <div><%= item.phone || '-' %></div>
                 <div class="muted"><%= item.status || '-' %></div>
                 <div class="muted"><%= item.source || '-' %></div>
-                <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
+              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></div>
                 <div class="admin-actions">
                   <a class="btn ghost" href="/admin/briefings/<%= item.id %>">Ver</a>
                 </div>
