@@ -57,30 +57,63 @@
       <% if (!briefings.length) { %>
         <p class="muted">Nenhum briefing encontrado.</p>
       <% } else { %>
-        <div class="table">
-          <div class="table-row table-header">
-            <div>Nome</div>
-            <div>E-mail</div>
-            <div>Telefone</div>
-            <div>Status</div>
-            <div>Origem</div>
-            <div>Recebido</div>
-            <div>Ações</div>
+        <% if (adminRole === 'super_admin') { %>
+          <div class="admin-actions" style="justify-content:flex-end;margin-bottom:12px;gap:8px;">
+            <button class="btn danger" type="submit" form="bulkDeleteBriefings" data-confirm="Excluir os briefings selecionados?">Excluir selecionados</button>
+            <form method="post" action="/admin/briefings/delete-all">
+              <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+              <input type="hidden" name="status" value="<%= filters.status %>" />
+              <input type="hidden" name="source" value="<%= filters.source %>" />
+              <input type="hidden" name="from" value="<%= filters.from %>" />
+              <input type="hidden" name="to" value="<%= filters.to %>" />
+              <input type="hidden" name="q" value="<%= filters.q %>" />
+              <button class="btn danger" type="submit" data-confirm="Excluir TODOS os briefings do filtro atual?">Excluir tudo</button>
+            </form>
           </div>
-          <% briefings.forEach(function(item){ %>
-            <div class="table-row">
-              <div><strong><%= item.name || '-' %></strong></div>
-              <div><%= item.email || '-' %></div>
-              <div><%= item.phone || '-' %></div>
-              <div class="muted"><%= item.status || '-' %></div>
-              <div class="muted"><%= item.source || '-' %></div>
-              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
-              <div class="admin-actions">
-                <a class="btn ghost" href="/admin/briefings/<%= item.id %>">Ver</a>
+        <% } %>
+
+        <form method="post" action="/admin/briefings/delete-selected" id="bulkDeleteBriefings">
+          <input type="hidden" name="csrf_token" value="<%= adminCsrf %>" />
+          <input type="hidden" name="status" value="<%= filters.status %>" />
+          <input type="hidden" name="source" value="<%= filters.source %>" />
+          <input type="hidden" name="from" value="<%= filters.from %>" />
+          <input type="hidden" name="to" value="<%= filters.to %>" />
+          <input type="hidden" name="q" value="<%= filters.q %>" />
+          <div class="table">
+            <div class="table-row table-header">
+              <div>
+                <% if (adminRole === 'super_admin') { %>
+                  <input type="checkbox" id="selectAllBriefings" />
+                <% } %>
               </div>
+              <div>Nome</div>
+              <div>E-mail</div>
+              <div>Telefone</div>
+              <div>Status</div>
+              <div>Origem</div>
+              <div>Recebido</div>
+              <div>Ações</div>
             </div>
-          <% }) %>
-        </div>
+            <% briefings.forEach(function(item){ %>
+              <div class="table-row">
+                <div>
+                  <% if (adminRole === 'super_admin') { %>
+                    <input type="checkbox" name="ids" value="<%= item.id %>" class="briefing-select" />
+                  <% } %>
+                </div>
+                <div><strong><%= item.name || '-' %></strong></div>
+                <div><%= item.email || '-' %></div>
+                <div><%= item.phone || '-' %></div>
+                <div class="muted"><%= item.status || '-' %></div>
+                <div class="muted"><%= item.source || '-' %></div>
+                <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
+                <div class="admin-actions">
+                  <a class="btn ghost" href="/admin/briefings/<%= item.id %>">Ver</a>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        </form>
       <% } %>
     </div>
 
@@ -94,4 +127,14 @@
     <% } %>
   </div>
 </section>
+<script>
+  (function () {
+    const selectAll = document.getElementById('selectAllBriefings');
+    if (!selectAll) return;
+    const checkboxes = Array.from(document.querySelectorAll('.briefing-select'));
+    selectAll.addEventListener('change', () => {
+      checkboxes.forEach((cb) => { cb.checked = selectAll.checked; });
+    });
+  })();
+</script>
 <%- include('partials_footer') %>

@@ -1564,6 +1564,44 @@ app.get("/admin/briefings/:id", requireAdmin("reader"), asyncHandler(async (req,
   });
 }));
 
+app.post("/admin/briefings/delete-selected", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const ids = []
+    .concat(req.body.ids || [])
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+  if (ids.length) {
+    await adminQuery(
+      `DELETE FROM briefings WHERE id = ANY($1::uuid[])`,
+      [ids]
+    );
+    await logAudit(req.admin && req.admin.id, "briefings_deleted", "briefings", null, { ids_count: ids.length });
+  }
+  res.redirect(`/admin/briefings?${new URLSearchParams({
+    status: req.body.status || "all",
+    source: req.body.source || "all",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: req.body.q || ""
+  }).toString()}`);
+}));
+
+app.post("/admin/briefings/delete-all", requireAdmin("super_admin"), requireAdminCsrf, asyncHandler(async (req, res) => {
+  const filters = {
+    status: req.body.status || "all",
+    source: req.body.source || "all",
+    from: req.body.from || "",
+    to: req.body.to || "",
+    q: String(req.body.q || "").trim()
+  };
+  const { clause, params } = buildBriefingFilters(filters);
+  const result = await adminQuery(
+    `DELETE FROM briefings ${clause} RETURNING id`,
+    params
+  );
+  await logAudit(req.admin && req.admin.id, "briefings_deleted_all", "briefings", null, { deleted_count: result.rows.length, filters });
+  res.redirect(`/admin/briefings?${new URLSearchParams(filters).toString()}`);
+}));
+
 app.get("/admin/materials", requireAdmin("reader"), asyncHandler(async (req, res) => {
   const filters = {
     status: req.query.status || "all",
