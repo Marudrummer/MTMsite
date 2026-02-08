@@ -1,0 +1,153 @@
+<%- include('partials_header', { title: 'Gráficos (CRM)' }) %>
+<section class="section">
+  <div class="container">
+    <div class="admin-header">
+      <div>
+        <h1>Gráficos (CRM)</h1>
+        <p class="muted">Visão rápida do funil e operações.</p>
+      </div>
+      <div class="admin-actions">
+        <a class="btn ghost" href="/admin/leads">Voltar</a>
+        <span class="muted">Seu nível: <%= adminRole %></span>
+      </div>
+    </div>
+
+    <div class="card form" style="margin-bottom:24px;">
+      <form method="get" action="/admin/leads/analytics">
+        <div class="grid-3">
+          <label>De (data)
+            <input type="date" name="from" value="<%= from ? from.toISOString().slice(0,10) : '' %>" />
+          </label>
+          <label>Até (data)
+            <input type="date" name="to" value="<%= to ? to.toISOString().slice(0,10) : '' %>" />
+          </label>
+          <div class="admin-actions" style="align-items:flex-end;">
+            <button class="btn" type="submit">Aplicar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <p class="eyebrow">Leads no período</p>
+        <h2><%= total %></h2>
+      </div>
+      <div class="card">
+        <p class="eyebrow">Vencidos</p>
+        <h2><%= overdue.overdue || 0 %></h2>
+        <p class="muted">Com próxima ação vencida</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">Sem ação</p>
+        <h2><%= overdue.no_action || 0 %></h2>
+        <p class="muted">Sem próxima ação definida</p>
+      </div>
+    </div>
+
+    <% const maxStatus = Math.max(1, ...statusCounts.map(r => r.count)); %>
+    <% const maxSource = Math.max(1, ...sourceCounts.map(r => r.count)); %>
+    <% const maxProvider = Math.max(1, ...providerCounts.map(r => r.count)); %>
+    <% const maxNext = Math.max(1, ...nextActionCounts.map(r => r.count)); %>
+
+    <div class="grid-2 admin-grid">
+      <div class="card">
+        <h3>Leads por status</h3>
+        <% if (!statusCounts.length) { %>
+          <p class="muted">Sem dados no período.</p>
+        <% } else { %>
+          <% statusCounts.forEach(item => { %>
+            <div class="bar-row">
+              <div class="bar-label"><%= item.key %></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:<%= (item.count / maxStatus) * 100 %>%"></div>
+              </div>
+              <div class="bar-value"><%= item.count %></div>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <h3>Leads por origem</h3>
+        <% if (!sourceCounts.length) { %>
+          <p class="muted">Sem dados no período.</p>
+        <% } else { %>
+          <% sourceCounts.forEach(item => { %>
+            <div class="bar-row">
+              <div class="bar-label"><%= item.key %></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:<%= (item.count / maxSource) * 100 %>%"></div>
+              </div>
+              <div class="bar-value"><%= item.count %></div>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="grid-2 admin-grid">
+      <div class="card">
+        <h3>Leads por provider</h3>
+        <% if (!providerCounts.length) { %>
+          <p class="muted">Sem dados no período.</p>
+        <% } else { %>
+          <% providerCounts.forEach(item => { %>
+            <div class="bar-row">
+              <div class="bar-label"><%= item.key %></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:<%= (item.count / maxProvider) * 100 %>%"></div>
+              </div>
+              <div class="bar-value"><%= item.count %></div>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <h3>Próxima ação</h3>
+        <% if (!nextActionCounts.length) { %>
+          <p class="muted">Sem dados no período.</p>
+        <% } else { %>
+          <% nextActionCounts.forEach(item => { %>
+            <div class="bar-row">
+              <div class="bar-label"><%= item.key %></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:<%= (item.count / maxNext) * 100 %>%"></div>
+              </div>
+              <div class="bar-value"><%= item.count %></div>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Ações pendentes</h3>
+      <div class="table">
+        <div class="table-row table-header">
+          <div>Dentro do prazo</div>
+          <div>Vencidos</div>
+          <div>Sem ação</div>
+        </div>
+        <div class="table-row">
+          <div><%= overdue.ontime || 0 %></div>
+          <div><%= overdue.overdue || 0 %></div>
+          <div><%= overdue.no_action || 0 %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .bar-row { display: grid; grid-template-columns: 140px 1fr 60px; gap: 12px; align-items: center; margin: 10px 0; }
+  .bar-label { font-weight: 600; font-size: 14px; }
+  .bar-track { background: rgba(255,255,255,0.08); border-radius: 999px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, #5f87ff, #f2c94c); }
+  .bar-value { text-align: right; font-weight: 600; }
+  @media (max-width: 840px) {
+    .bar-row { grid-template-columns: 1fr; }
+    .bar-value { text-align: left; }
+  }
+</style>
+<%- include('partials_footer') %>

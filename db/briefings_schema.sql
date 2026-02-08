@@ -5,6 +5,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists briefings (
   id uuid primary key default gen_random_uuid(),
+  profile_id uuid,
   idempotency_key text unique,
   source text not null default 'nao-sabe',
   status text not null default 'new',

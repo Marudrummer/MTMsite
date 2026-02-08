@@ -95,7 +95,7 @@
                 </div>
                 <div><%= profile.provider || '-' %></div>
                 <div class="muted">
-                  <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %>
+                  <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %>
                 </div>
                 <div class="muted">
                   <%= profile.ip || '-' %>

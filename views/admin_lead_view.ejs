@@ -24,8 +24,8 @@
           <p><strong>Provider:</strong> <%= lead.provider || '-' %></p>
           <p><strong>Status:</strong> <%= lead.crm_status || '-' %></p>
           <p><strong>Origem:</strong> <%= lead.source || '-' %></p>
-          <p><strong>Criado em:</strong> <%= lead.created_at ? new Date(lead.created_at).toLocaleString('pt-BR') : '-' %></p>
-          <p><strong>Atualizado em:</strong> <%= lead.updated_at ? new Date(lead.updated_at).toLocaleString('pt-BR') : '-' %></p>
+          <p><strong>Criado em:</strong> <%= lead.created_at ? new Date(lead.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></p>
+          <p><strong>Atualizado em:</strong> <%= lead.updated_at ? new Date(lead.updated_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></p>
         </div>
       </div>
     </div>
@@ -103,7 +103,7 @@
       <% } else { %>
         <ul class="list">
           <% logins.forEach(function(item){ %>
-            <li><%= item.provider %> — <%= new Date(item.created_at).toLocaleString('pt-BR') %></li>
+            <li><%= item.provider %> — <%= new Date(item.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) %></li>
           <% }) %>
         </ul>
       <% } %>
@@ -116,7 +116,7 @@
       <% } else { %>
         <ul class="list">
           <% downloads.forEach(function(item){ %>
-            <li><%= item.material_id %> — <%= new Date(item.created_at).toLocaleString('pt-BR') %></li>
+            <li><%= item.material_id %> — <%= new Date(item.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) %></li>
           <% }) %>
         </ul>
       <% } %>

@@ -550,6 +550,18 @@ function buildBriefingFilters(query) {
   return { clause, params };
 }
 
+function resolveAdminDateRange(query) {
+  const now = new Date();
+  const defaultFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  let from = query.from ? new Date(query.from) : defaultFrom;
+  let to = query.to ? new Date(query.to) : now;
+  if (Number.isNaN(from.getTime())) from = defaultFrom;
+  if (Number.isNaN(to.getTime())) to = now;
+  const fromIso = from.toISOString();
+  const toIso = to.toISOString();
+  return { from, to, fromIso, toIso };
+}
+
 async function requireLeadComplete(req, res, next) {
   const token = req.cookies && req.cookies.mtm_access_token;
   const payload = decodeJwtPayload(token);
@@ -866,6 +878,7 @@ app.post("/briefings/:id/attachments", requireUserAuth, requireLeadComplete, asy
   }
   const briefingId = String(req.params.id || "").trim();
   const email = normalizeEmail(payload.email);
+  const profileId = payload.sub || null;
   const {
     file_name,
     mime_type,
@@ -908,14 +921,17 @@ app.post("/briefings/:id/attachments", requireUserAuth, requireLeadComplete, asy
   }
 
   const { rows } = await adminQuery(
-    "SELECT id, email FROM briefings WHERE id = $1 LIMIT 1",
+    "SELECT id, email, profile_id FROM briefings WHERE id = $1 LIMIT 1",
     [briefingId]
   );
   const briefing = rows[0];
   if (!briefing) {
     return res.status(404).json({ error: "Briefing não encontrado." });
   }
-  if (normalizeEmail(briefing.email) !== email) {
+  if (briefing.profile_id && profileId && briefing.profile_id !== profileId) {
+    return res.status(403).json({ error: "Acesso negado." });
+  }
+  if (!briefing.profile_id && normalizeEmail(briefing.email) !== email) {
     return res.status(403).json({ error: "Acesso negado." });
   }
 
@@ -1257,6 +1273,77 @@ app.get("/admin/leads", requireAdmin("reader"), asyncHandler(async (req, res) =>
     page,
     total,
     perPage
+  });
+}));
+
+app.get("/admin/leads/analytics", requireAdmin("reader"), asyncHandler(async (req, res) => {
+  const { from, to, fromIso, toIso } = resolveAdminDateRange(req.query);
+
+  const totalResult = await adminQuery(
+    `SELECT COUNT(*)::int AS count
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2`,
+    [fromIso, toIso]
+  );
+  const total = totalResult.rows[0]?.count || 0;
+
+  const statusResult = await adminQuery(
+    `SELECT COALESCE(crm_status, 'sem_status') AS key, COUNT(*)::int AS count
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2
+     GROUP BY 1
+     ORDER BY count DESC`,
+    [fromIso, toIso]
+  );
+
+  const sourceResult = await adminQuery(
+    `SELECT COALESCE(source, 'desconhecido') AS key, COUNT(*)::int AS count
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2
+     GROUP BY 1
+     ORDER BY count DESC`,
+    [fromIso, toIso]
+  );
+
+  const providerResult = await adminQuery(
+    `SELECT COALESCE(provider, 'desconhecido') AS key, COUNT(*)::int AS count
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2
+     GROUP BY 1
+     ORDER BY count DESC`,
+    [fromIso, toIso]
+  );
+
+  const nextActionResult = await adminQuery(
+    `SELECT COALESCE(next_action_type, 'sem_acao') AS key, COUNT(*)::int AS count
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2
+     GROUP BY 1
+     ORDER BY count DESC`,
+    [fromIso, toIso]
+  );
+
+  const overdueResult = await adminQuery(
+    `SELECT
+        SUM(CASE WHEN next_action_at IS NOT NULL AND next_action_at < now() THEN 1 ELSE 0 END)::int AS overdue,
+        SUM(CASE WHEN next_action_at IS NOT NULL AND next_action_at >= now() THEN 1 ELSE 0 END)::int AS ontime,
+        SUM(CASE WHEN next_action_at IS NULL THEN 1 ELSE 0 END)::int AS no_action
+     FROM leads
+     WHERE created_at >= $1 AND created_at <= $2`,
+    [fromIso, toIso]
+  );
+
+  const overdue = overdueResult.rows[0] || { overdue: 0, ontime: 0, no_action: 0 };
+
+  res.render("admin_leads_analytics", {
+    from,
+    to,
+    total,
+    statusCounts: statusResult.rows || [],
+    sourceCounts: sourceResult.rows || [],
+    providerCounts: providerResult.rows || [],
+    nextActionCounts: nextActionResult.rows || [],
+    overdue
   });
 }));
 
@@ -2003,6 +2090,9 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   if (!name || !email || !idea) return res.redirect("/nao-sabe");
   if (!deal_type) return res.redirect("/nao-sabe");
   if (!pool) return res.status(500).json({ error: "Banco não configurado." });
+  const token = req.cookies && req.cookies.mtm_access_token;
+  const authPayload = decodeJwtPayload(token);
+  const profileId = authPayload && authPayload.sub ? authPayload.sub : null;
   const normalizedEmail = normalizeEmail(email);
   const idempotencyKey = crypto.randomUUID();
   const payload = {
@@ -2024,10 +2114,11 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   };
   const insertResult = await adminQuery(
     `INSERT INTO briefings
-     (idempotency_key, source, status, name, email, phone, city, idea, deal_type, rental_details, event_location, summary, payload)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     (profile_id, idempotency_key, source, status, name, email, phone, city, idea, deal_type, rental_details, event_location, summary, payload)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      RETURNING id`,
     [
+      profileId,
       idempotencyKey,
       "nao-sabe",
       "new",

@@ -8,6 +8,7 @@
       </div>
       <div class="admin-actions">
         <a class="btn ghost" href="/admin">Voltar</a>
+        <a class="btn ghost" href="/admin/leads/analytics">Gráficos</a>
         <span class="muted">Seu nível: <%= adminRole %></span>
       </div>
     </div>
@@ -157,7 +158,7 @@
                 <div class="muted">
                   <%= lead.next_action_type || '-' %>
                   <% if (lead.next_action_at) { %>
-                    <div><%= new Date(lead.next_action_at).toLocaleString('pt-BR') %></div>
+                    <div><%= new Date(lead.next_action_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) %></div>
                   <% } %>
                 </div>
                 <div class="admin-actions">

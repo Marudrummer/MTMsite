@@ -17,7 +17,7 @@
         <div>
           <p><strong>Email:</strong> <%= profile.email || '-' %></p>
           <p><strong>Provider:</strong> <%= profile.provider || '-' %></p>
-          <p><strong>Cadastro:</strong> <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR') : '-' %></p>
+          <p><strong>Cadastro:</strong> <%= profile.created_at ? new Date(profile.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></p>
         </div>
         <div>
           <p><strong>IP:</strong> <%= profile.ip || '-' %></p>

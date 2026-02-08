@@ -21,7 +21,7 @@
         <p><strong>Cidade:</strong> <%= briefing.city || '-' %></p>
         <p><strong>Status:</strong> <%= briefing.status || '-' %></p>
         <p><strong>Origem:</strong> <%= briefing.source || '-' %></p>
-        <p><strong>Recebido em:</strong> <%= briefing.created_at ? new Date(briefing.created_at).toLocaleString('pt-BR') : '-' %></p>
+        <p><strong>Recebido em:</strong> <%= briefing.created_at ? new Date(briefing.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></p>
       </div>
 
       <div class="card">
@@ -52,7 +52,7 @@
               <div><strong><%= item.file_name %></strong></div>
               <div class="muted"><%= item.mime_type %></div>
               <div class="muted"><%= item.file_size ? (item.file_size / 1024 / 1024).toFixed(1) + 'MB' : '-' %></div>
-              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-' %></div>
+              <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></div>
               <div class="admin-actions">
                 <a class="btn ghost" href="<%= item.public_url %>" target="_blank" rel="noopener">Abrir</a>
               </div>
