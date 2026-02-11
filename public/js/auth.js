@@ -258,23 +258,41 @@
       ensureProfile();
     });
 
-    let inactivityTimer = null;
-    const inactivityLimitMs = 60 * 1000;
-    const resetTimer = () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
-      inactivityTimer = setTimeout(async () => {
-        await supabase.auth.signOut();
-        window.location.href = "/";
-      }, inactivityLimitMs);
-    };
+    const path = window.location.pathname || "/";
+    const disableInactivityLogout =
+      path === "/" ||
+      path.startsWith("/blog") ||
+      path.startsWith("/lab") ||
+      path === "/sobre" ||
+      path === "/servicos" ||
+      path === "/contato";
 
-    // Logout only on pointer inactivity (mouse/touch/scroll) for 1 minute.
-    ["mousemove", "pointermove", "touchstart", "scroll"].forEach((evt) => {
-      window.addEventListener(evt, resetTimer, { passive: true });
-    });
+    if (!disableInactivityLogout) {
+      let inactivityTimer = null;
+      const inactivityLimitMs = 3 * 60 * 1000;
+      const resetTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(async () => {
+          await supabase.auth.signOut();
+          window.location.href = "/";
+        }, inactivityLimitMs);
+      };
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (data && data.session) resetTimer();
-    });
+      ["mousemove", "pointermove", "touchstart", "scroll"].forEach((evt) => {
+        window.addEventListener(evt, resetTimer, { passive: true });
+      });
+
+      // If the page uses native media elements, treat playback as activity.
+      const mediaActivityEvents = ["play", "playing", "timeupdate", "seeking", "seeked"];
+      document.querySelectorAll("video, audio").forEach((el) => {
+        mediaActivityEvents.forEach((evt) => {
+          el.addEventListener(evt, resetTimer, { passive: true });
+        });
+      });
+
+      supabase.auth.getSession().then(({ data }) => {
+        if (data && data.session) resetTimer();
+      });
+    }
   });
 })();
