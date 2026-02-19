@@ -2087,27 +2087,31 @@ async function sendToN8n(payload) {
 app.post("/qualificador", asyncHandler(async (req, res) => {
   const { name, email, phone, city, idea, website, deal_type, rental_details, event_location } = req.body;
   if (website) return res.redirect("/nao-sabe");
-  if (!name || !email || !idea) return res.redirect("/nao-sabe");
+  const nameText = String(name || "").trim();
+  const emailText = String(email || "").trim();
+  const phoneText = String(phone || "").trim();
+  const ideaText = String(idea || "").trim();
+  if (!nameText || !emailText || !phoneText || !ideaText) return res.redirect("/nao-sabe");
   if (!deal_type) return res.redirect("/nao-sabe");
   if (!pool) return res.status(500).json({ error: "Banco não configurado." });
   const token = req.cookies && req.cookies.mtm_access_token;
   const authPayload = decodeJwtPayload(token);
   const profileId = authPayload && authPayload.sub ? authPayload.sub : null;
-  const normalizedEmail = normalizeEmail(email);
+  const normalizedEmail = normalizeEmail(emailText);
   const idempotencyKey = crypto.randomUUID();
   const payload = {
     idempotency_key: idempotencyKey,
     source: "nao-sabe",
     channel: "site_form",
-    phone: phone || "",
-    name: name || "",
+    phone: phoneText,
+    name: nameText,
     email: normalizedEmail || "",
-    city: city || "",
+    city: String(city || "").trim(),
     answers: {
-      idea: idea || "",
+      idea: ideaText,
       deal_type: deal_type || "",
-      rental_details: rental_details || "",
-      event_location: event_location || ""
+      rental_details: String(rental_details || "").trim(),
+      event_location: String(event_location || "").trim()
     },
     summary: "",
     status: "new"
@@ -2122,11 +2126,11 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       idempotencyKey,
       "nao-sabe",
       "new",
-      String(name || "").trim(),
+      nameText,
       normalizedEmail,
-      String(phone || "").trim(),
+      phoneText,
       String(city || "").trim(),
-      String(idea || "").trim(),
+      ideaText,
       String(deal_type || "").trim(),
       String(rental_details || "").trim(),
       String(event_location || "").trim(),
@@ -2149,16 +2153,16 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
         const subject = "Briefing enviado pelo site (Não sabe o que fazer?)";
         const text = [
-          `Nome: ${name || ""}`,
+          `Nome: ${nameText || ""}`,
           `Email: ${normalizedEmail || ""}`,
-          `Telefone: ${phone || ""}`,
+          `Telefone: ${phoneText || ""}`,
           `Cidade: ${city || ""}`,
           `Compra/Locação: ${deal_type || ""}`,
           `Locação (dias/datas): ${rental_details || ""}`,
           `Local do evento: ${event_location || ""}`,
           "",
           "Ideia:",
-          `${idea || ""}`
+          `${ideaText || ""}`
         ].join("\n");
         await mailer.sendMail({
           from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -2178,7 +2182,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       const subject = "Recebemos seu briefing — MTM Solution";
       const baseUrl = `${req.protocol}://${req.get("host")}`;
       const text = [
-        `Olá, ${name || "tudo bem"}!`,
+        `Olá, ${nameText || "tudo bem"}!`,
         "",
         "Recebemos seu briefing e já estamos analisando.",
         "Em breve um especialista da MTM Solution entrará em contato com os próximos passos.",
