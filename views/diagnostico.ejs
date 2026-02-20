@@ -78,6 +78,12 @@
         <input name="whatsapp" required />
       </label>
 
+      <label>Anexos (opcional)
+        <input id="diagnosticoFiles" type="file" name="files" multiple />
+        <small class="muted">Até <%= uploadMaxFiles %> arquivos, <%= uploadMaxMb %>MB cada. Tipos: PDF, texto, imagens (PNG/JPEG/WEBP) e áudio (MP3/M4A/WAV).</small>
+      </label>
+      <div class="muted" data-diagnostico-files></div>
+      <div class="muted" data-diagnostico-status></div>
       <div class="muted error" data-diagnostico-error></div>
       <button class="btn primary" type="submit">Iniciar Diagnóstico Técnico</button>
     </form>
@@ -96,5 +102,12 @@
     </div>
   </div>
 </section>
+<script>
+  window.MTM_BRIEFING_CONFIG = {
+    bucket: "<%= briefingsBucket %>",
+    maxFiles: <%= uploadMaxFiles %>,
+    maxMb: <%= uploadMaxMb %>
+  };
+</script>
 <script src="/js/diagnostico.js"></script>
 <%- include('partials_footer') %>

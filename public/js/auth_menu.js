@@ -36,7 +36,7 @@
             localStorage.setItem("mtm_next", next);
             if (next.includes("/materiais")) {
               localStorage.setItem("mtm_src", "materiais");
-            } else if (next.includes("/nao-sabe")) {
+            } else if (next.includes("/nao-sabe") || next.includes("/diagnostico")) {
               localStorage.setItem("mtm_src", "nao-sabe");
             } else {
               localStorage.setItem("mtm_src", "login");

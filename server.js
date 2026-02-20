@@ -127,8 +127,7 @@ function isIndexablePublicPath(pathname) {
     pathname === "/servicos" ||
     pathname === "/blog" ||
     pathname.startsWith("/blog/") ||
-    pathname === "/contato" ||
-    pathname === "/diagnostico"
+    pathname === "/contato"
   ) {
     return true;
   }
@@ -641,7 +640,11 @@ async function requireLeadComplete(req, res, next) {
     return res.redirect(`/login?next=${nextUrl}`);
   }
   const lead = await getLeadByProfileOrEmail(payload.sub, payload.email);
-  const src = req.path === "/materiais" ? "materiais" : req.path === "/nao-sabe" ? "nao-sabe" : "login";
+  const src = req.path === "/materiais"
+    ? "materiais"
+    : (req.path === "/nao-sabe" || req.path === "/diagnostico")
+      ? "nao-sabe"
+      : "login";
   if (!isLeadComplete(lead)) {
     const nextUrl = encodeURIComponent(req.originalUrl || "/");
     return res.redirect(`/lead-rapido?next=${nextUrl}&src=${encodeURIComponent(src)}`);
@@ -908,7 +911,7 @@ app.get("/lab/:slug", (req, res) => res.redirect(301, `/blog/${req.params.slug}`
 
 app.get("/sitemap.xml", asyncHandler(async (req, res) => {
   const baseUrl = "https://www.mtmsolution.com.br";
-  const staticUrls = ["/", "/sobre", "/servicos", "/blog", "/contato", "/diagnostico"];
+  const staticUrls = ["/", "/sobre", "/servicos", "/blog", "/contato"];
   const posts = await getPosts();
   const urls = [
     ...staticUrls.map((path) => `${baseUrl}${path}`),
@@ -933,15 +936,12 @@ app.get("/contato", (req, res) => {
   res.render("contato", { preset });
 });
 
-app.get("/diagnostico", (req, res) => {
+app.get("/diagnostico", requireUserAuth, requireLeadComplete, (req, res) => {
   res.render("diagnostico", { sent: req.query.sent === "1" });
 });
 
-app.get("/nao-sabe", requireUserAuth, requireLeadComplete, (req, res) => {
-  res.render("nao_sabe", {
-    whatsappPhone: WHATSAPP_PHONE,
-    sent: req.query.sent === "1"
-  });
+app.get("/nao-sabe", (req, res) => {
+  res.redirect("/diagnostico");
 });
 
 app.post("/briefings/:id/attachments", requireUserAuth, requireLeadComplete, asyncHandler(async (req, res) => {
@@ -2234,13 +2234,13 @@ app.post("/api/leads/diagnostico", asyncHandler(async (req, res) => {
 
 app.post("/qualificador", asyncHandler(async (req, res) => {
   const { name, email, phone, city, idea, website, deal_type, rental_details, event_location } = req.body;
-  if (website) return res.redirect("/nao-sabe");
+  if (website) return res.redirect("/diagnostico");
   const nameText = String(name || "").trim();
   const emailText = String(email || "").trim();
   const phoneText = String(phone || "").trim();
   const ideaText = String(idea || "").trim();
-  if (!nameText || !emailText || !phoneText || !ideaText) return res.redirect("/nao-sabe");
-  if (!deal_type) return res.redirect("/nao-sabe");
+  if (!nameText || !emailText || !phoneText || !ideaText) return res.redirect("/diagnostico");
+  if (!deal_type) return res.redirect("/diagnostico");
   if (!pool) return res.status(500).json({ error: "Banco não configurado." });
   const token = req.cookies && req.cookies.mtm_access_token;
   const authPayload = decodeJwtPayload(token);
@@ -2293,7 +2293,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   if (wantsJson) {
     res.json({ ok: true, briefing_id: briefingId });
   } else {
-    res.redirect("/nao-sabe?sent=1");
+    res.redirect("/diagnostico?sent=1");
   }
 
   setImmediate(async () => {
