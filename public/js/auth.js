@@ -16,14 +16,31 @@
     return params.get(name);
   }
 
+  function getAuthBaseUrl() {
+    const origin = window.location.origin || "";
+    const host = window.location.hostname || "";
+    if (host === "mtmsolution.com.br" || host === "www.mtmsolution.com.br") {
+      return "https://www.mtmsolution.com.br";
+    }
+    return origin;
+  }
+
+  function normalizeNextTarget(value) {
+    const text = String(value || "").trim();
+    if (!text.startsWith("/") || text.startsWith("//")) return "/";
+    if (text.startsWith("/login")) return "/";
+    return text;
+  }
+
   function getNextTarget() {
     const fromQuery = qs("next");
     if (fromQuery) {
-      localStorage.setItem("mtm_next", fromQuery);
-      return fromQuery;
+      const safe = normalizeNextTarget(fromQuery);
+      localStorage.setItem("mtm_next", safe);
+      return safe;
     }
     const stored = localStorage.getItem("mtm_next");
-    return stored || "/";
+    return normalizeNextTarget(stored || "/");
   }
 
   function getIntentSource() {
@@ -107,11 +124,21 @@
   async function handlePostLogin(session) {
     const nextTarget = getNextTarget();
     const src = getIntentSource();
-    const resp = await fetch("/auth/need-lead");
-    const data = await resp.json();
-    if (data && data.needLead) {
-      window.location.href = `/lead-rapido?next=${encodeURIComponent(nextTarget)}&src=${encodeURIComponent(src)}`;
-      return;
+    try {
+      const resp = await fetch("/auth/need-lead", {
+        headers: { Accept: "application/json" }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.needLead) {
+          window.location.href = `/lead-rapido?next=${encodeURIComponent(nextTarget)}&src=${encodeURIComponent(src)}`;
+          return;
+        }
+      } else {
+        console.warn("auth/need-lead response not ok:", resp.status);
+      }
+    } catch (error) {
+      console.warn("auth/need-lead failed, seguindo com redirect:", error && error.message ? error.message : error);
     }
     localStorage.removeItem("mtm_next");
     localStorage.removeItem("mtm_src");
@@ -147,7 +174,7 @@
           return;
         }
         const nextTarget = getNextTarget();
-        const redirectTo = `${window.location.origin}/login?next=${encodeURIComponent(nextTarget)}`;
+        const redirectTo = `${getAuthBaseUrl()}/login?next=${encodeURIComponent(nextTarget)}`;
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo }
@@ -166,7 +193,7 @@
         const email = emailInput ? emailInput.value.trim() : "";
         if (!email) return;
         const nextTarget = getNextTarget();
-        const redirectTo = `${window.location.origin}/login?next=${encodeURIComponent(nextTarget)}`;
+        const redirectTo = `${getAuthBaseUrl()}/login?next=${encodeURIComponent(nextTarget)}`;
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: redirectTo }
@@ -185,7 +212,7 @@
         await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: `${window.location.origin}/login?next=${encodeURIComponent(nextTarget)}`
+            redirectTo: `${getAuthBaseUrl()}/login?next=${encodeURIComponent(nextTarget)}`
           }
         });
       });
