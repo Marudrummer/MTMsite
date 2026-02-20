@@ -1,0 +1,100 @@
+<%- include('partials_header', { title: 'Iniciar Diagnóstico Técnico', description: 'Responda algumas perguntas para entendermos seu espaço e oferecer um direcionamento técnico inicial.' }) %>
+<section class="hero small">
+  <div class="container">
+    <h1>Inicie o Diagnóstico do Seu Projeto Interativo</h1>
+    <p class="lead">A MTM trabalha com metodologia estruturada. Antes de propor uma solução, fazemos uma análise inicial do contexto do espaço, objetivos educativos e viabilidade técnica. Isso garante um direcionamento consistente.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid-2">
+    <form class="card form" data-diagnostico-form novalidate>
+      <h3>Diagnóstico Técnico</h3>
+
+      <label>Tipo de espaço
+        <select name="tipoEspaco" required>
+          <option value="">Selecione</option>
+          <option value="Museu permanente">Museu permanente</option>
+          <option value="Exposição temporária">Exposição temporária</option>
+          <option value="Centro cultural">Centro cultural</option>
+          <option value="Espaço corporativo">Espaço corporativo</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </label>
+      <label>Cidade/Estado
+        <input name="cidadeEstado" required />
+      </label>
+      <label>Área aproximada (m²)
+        <input name="areaM2" type="number" min="0" />
+      </label>
+
+      <label>Objetivo principal
+        <select name="objetivo" required>
+          <option value="">Selecione</option>
+          <option value="Engajamento do visitante">Engajamento do visitante</option>
+          <option value="Educação interativa">Educação interativa</option>
+          <option value="Inovação tecnológica">Inovação tecnológica</option>
+          <option value="Patrocinador/marca">Patrocinador/marca</option>
+          <option value="Modernização de espaço">Modernização de espaço</option>
+        </select>
+      </label>
+      <div class="form-group">
+        <p class="field-title">Conceito definido?</p>
+        <div class="inline-options">
+          <label><input type="radio" name="conceito" value="Sim" /> Sim</label>
+          <label><input type="radio" name="conceito" value="Parcial" /> Parcial</label>
+          <label><input type="radio" name="conceito" value="Ainda estamos explorando" /> Ainda estamos explorando</label>
+        </div>
+      </div>
+
+      <label>Prazo estimado
+        <select name="prazo" required>
+          <option value="">Selecione</option>
+          <option value="Até 3 meses">Até 3 meses</option>
+          <option value="3–6 meses">3–6 meses</option>
+          <option value="6–12 meses">6–12 meses</option>
+          <option value="Sem prazo definido">Sem prazo definido</option>
+        </select>
+      </label>
+      <div class="form-group">
+        <p class="field-title">Orçamento estimado?</p>
+        <div class="inline-options">
+          <label><input type="radio" name="orcamento" value="Sim" /> Sim</label>
+          <label><input type="radio" name="orcamento" value="Em definição" /> Em definição</label>
+          <label><input type="radio" name="orcamento" value="Não definido" /> Não definido</label>
+        </div>
+      </div>
+
+      <label>Nome
+        <input name="nome" required />
+      </label>
+      <label>Cargo
+        <input name="cargo" required />
+      </label>
+      <label>E-mail
+        <input name="email" type="email" required />
+      </label>
+      <label>WhatsApp/Telefone
+        <input name="whatsapp" required />
+      </label>
+
+      <div class="muted error" data-diagnostico-error></div>
+      <button class="btn primary" type="submit">Iniciar Diagnóstico Técnico</button>
+    </form>
+
+    <div class="card highlight" data-diagnostico-success style="display:none;">
+      <h3>Diagnóstico recebido</h3>
+      <p>Recebemos seu diagnóstico. Nossa equipe fará uma avaliação preliminar e entrará em contato para uma conversa técnica inicial.</p>
+      <a class="btn ghost" href="https://wa.me/<%= whatsappPhone || '5511970663565' %>" target="_blank" rel="noreferrer">Falar no WhatsApp agora</a>
+    </div>
+
+    <div class="card highlight" data-diagnostico-info>
+      <h3>Como funciona</h3>
+      <p>Você responde as perguntas do contexto do espaço, objetivo e planejamento.</p>
+      <p class="muted">Com isso, nosso time prepara um direcionamento técnico inicial e agenda o próximo passo.</p>
+      <a class="btn ghost" href="https://wa.me/<%= whatsappPhone || '5511970663565' %>" target="_blank" rel="noreferrer">WhatsApp (opcional)</a>
+    </div>
+  </div>
+</section>
+<script src="/js/diagnostico.js"></script>
+<%- include('partials_footer') %>

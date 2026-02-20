@@ -265,7 +265,8 @@
       path.startsWith("/lab") ||
       path === "/sobre" ||
       path === "/servicos" ||
-      path === "/contato";
+      path === "/contato" ||
+      path === "/diagnostico";
 
     if (!disableInactivityLogout) {
       let inactivityTimer = null;

@@ -351,6 +351,23 @@ a { color: inherit; text-decoration: none; }
 
 .form label { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; color: var(--muted); }
 .card.form label { color: #d9e6ff; }
+.inline-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.inline-options label {
+  margin-bottom: 0;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.form-group { margin-bottom: 16px; }
+.field-title {
+  color: #d9e6ff;
+  margin-bottom: 8px;
+}
 
 .form input, .form textarea, .lab-controls input, .lab-controls select {
   padding: 12px;

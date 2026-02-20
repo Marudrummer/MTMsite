@@ -121,7 +121,15 @@ function isIndexablePublicPath(pathname) {
   if (pathname === "/login" || pathname === "/logout" || pathname === "/lead-rapido" || pathname === "/perfil") return false;
   if (pathname.startsWith("/materiais")) return false;
   if (pathname === "/robots.txt" || pathname === "/sitemap.xml") return false;
-  if (pathname === "/" || pathname === "/sobre" || pathname === "/servicos" || pathname === "/blog" || pathname.startsWith("/blog/") || pathname === "/contato") {
+  if (
+    pathname === "/" ||
+    pathname === "/sobre" ||
+    pathname === "/servicos" ||
+    pathname === "/blog" ||
+    pathname.startsWith("/blog/") ||
+    pathname === "/contato" ||
+    pathname === "/diagnostico"
+  ) {
     return true;
   }
   return false;
@@ -513,6 +521,14 @@ function isValidEmail(value) {
   return Boolean(text && /.+@.+\..+/.test(text));
 }
 
+function maskEmail(email) {
+  const normalized = normalizeEmail(email);
+  const [user, domain] = normalized.split("@");
+  if (!user || !domain) return "";
+  const visible = user.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(1, user.length - visible.length))}@${domain}`;
+}
+
 async function getLeadByProfileOrEmail(profileId, email) {
   const { rows } = await adminQuery(
     "SELECT * FROM leads WHERE profile_id = $1 OR email = $2 LIMIT 1",
@@ -892,7 +908,7 @@ app.get("/lab/:slug", (req, res) => res.redirect(301, `/blog/${req.params.slug}`
 
 app.get("/sitemap.xml", asyncHandler(async (req, res) => {
   const baseUrl = "https://www.mtmsolution.com.br";
-  const staticUrls = ["/", "/sobre", "/servicos", "/blog", "/contato"];
+  const staticUrls = ["/", "/sobre", "/servicos", "/blog", "/contato", "/diagnostico"];
   const posts = await getPosts();
   const urls = [
     ...staticUrls.map((path) => `${baseUrl}${path}`),
@@ -915,6 +931,10 @@ app.get("/contato", (req, res) => {
     mensagem: req.query.mensagem || ""
   };
   res.render("contato", { preset });
+});
+
+app.get("/diagnostico", (req, res) => {
+  res.render("diagnostico", { sent: req.query.sent === "1" });
 });
 
 app.get("/nao-sabe", requireUserAuth, requireLeadComplete, (req, res) => {
@@ -2125,18 +2145,92 @@ app.post("/contato", asyncHandler(async (req, res) => {
   res.render("contato", { sent: true });
 }));
 
-async function sendToN8n(payload) {
+async function sendToN8n(payload, options = {}) {
   if (!N8N_WEBHOOK_URL) return;
+  const timeoutMs = Number(options.timeoutMs || 2500);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     await fetch(N8N_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
   } catch (err) {
-    console.error("N8N webhook failed:", err.message);
+    console.error("N8N webhook failed:", err && err.message ? err.message : err);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
+
+app.post("/api/leads/diagnostico", asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const normalize = (value) => String(value || "").trim();
+  const payload = {
+    tipoEspaco: normalize(body.tipoEspaco),
+    cidadeEstado: normalize(body.cidadeEstado),
+    areaM2: normalize(body.areaM2),
+    objetivo: normalize(body.objetivo),
+    conceito: normalize(body.conceito),
+    prazo: normalize(body.prazo),
+    orcamento: normalize(body.orcamento),
+    nome: normalize(body.nome),
+    cargo: normalize(body.cargo),
+    email: normalize(body.email).toLowerCase(),
+    whatsapp: normalize(body.whatsapp)
+  };
+
+  const requiredFields = [
+    ["tipoEspaco", "Informe o tipo de espaço."],
+    ["cidadeEstado", "Informe cidade/estado."],
+    ["objetivo", "Informe o objetivo principal."],
+    ["prazo", "Informe o prazo estimado."],
+    ["nome", "Informe seu nome."],
+    ["cargo", "Informe seu cargo."],
+    ["email", "Informe um e-mail válido."],
+    ["whatsapp", "Informe telefone ou WhatsApp."]
+  ];
+  for (const [field, message] of requiredFields) {
+    if (!payload[field]) {
+      return res.status(400).json({ ok: false, error: message, field });
+    }
+  }
+  if (!isValidEmail(payload.email)) {
+    return res.status(400).json({ ok: false, error: "Informe um e-mail válido.", field: "email" });
+  }
+
+  const leadId = crypto.randomUUID();
+  const logPayload = {
+    lead_id: leadId,
+    route: "/api/leads/diagnostico",
+    tipoEspaco: payload.tipoEspaco,
+    objetivo: payload.objetivo,
+    prazo: payload.prazo,
+    orcamento: payload.orcamento,
+    cidadeEstado: payload.cidadeEstado,
+    contato: {
+      nome: payload.nome,
+      cargo: payload.cargo,
+      email: maskEmail(payload.email)
+    },
+    created_at: new Date().toISOString()
+  };
+  console.log("diagnostico_lead_received", JSON.stringify(logPayload));
+
+  sendToN8n(
+    {
+      event: "diagnostico_tecnico",
+      lead_id: leadId,
+      payload
+    },
+    { timeoutMs: 2500 }
+  ).catch((err) => {
+    console.warn("diagnostico webhook warning:", err && err.message ? err.message : err);
+  });
+
+  return res.status(200).json({ ok: true, lead_id: leadId });
+}));
 
 app.post("/qualificador", asyncHandler(async (req, res) => {
   const { name, email, phone, city, idea, website, deal_type, rental_details, event_location } = req.body;
