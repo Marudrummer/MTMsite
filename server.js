@@ -836,7 +836,7 @@ app.get("/lab", (req, res) => res.redirect(301, "/blog"));
 app.get("/lab/:slug", (req, res) => res.redirect(301, `/blog/${req.params.slug}`));
 
 app.get("/sitemap.xml", asyncHandler(async (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = "https://www.mtmsolution.com.br";
   const staticUrls = ["/", "/sobre", "/servicos", "/blog", "/contato"];
   const posts = await getPosts();
   const urls = [
@@ -851,8 +851,7 @@ app.get("/sitemap.xml", asyncHandler(async (req, res) => {
 }));
 
 app.get("/robots.txt", (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`);
+  res.type("text/plain").send("User-agent: *\nAllow: /\n\nSitemap: https://www.mtmsolution.com.br/sitemap.xml\n");
 });
 
 app.get("/contato", (req, res) => {
