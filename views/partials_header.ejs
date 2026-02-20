@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <% const pageTitle = typeof title !== 'undefined' ? title + ' | MTM Solution' : 'MTM Solution'; %>
+  <% const pageTitle = typeof title !== 'undefined' ? title : 'MTM Solution'; %>
   <% const metaDescription = typeof description !== 'undefined' ? description : 'MTM Solution - tecnologia para experiências interativas, IA e sistemas sob medida.'; %>
   <% const metaImage = typeof image !== 'undefined' ? image : '/img/logo-mtm.png'; %>
   <title><%= pageTitle %></title>
   <meta name="description" content="<%= metaDescription %>" />
+  <meta name="robots" content="<%= robotsMeta || 'index, follow' %>" />
+  <link rel="canonical" href="<%= canonicalUrl || 'https://www.mtmsolution.com.br' %>" />
   <meta property="og:title" content="<%= pageTitle %>" />
   <meta property="og:description" content="<%= metaDescription %>" />
   <meta property="og:type" content="website" />

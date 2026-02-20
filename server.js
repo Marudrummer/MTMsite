@@ -31,6 +31,7 @@ const adminLoginAttemptsByIp = new Map();
 const EMAIL_ENABLED = Boolean(nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 const WHATSAPP_PHONE = process.env.WHATSAPP_PHONE || "5500000000000";
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
+const SEO_CANONICAL_BASE = "https://www.mtmsolution.com.br";
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -88,6 +89,57 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
+function getForwardedHost(req) {
+  const forwardedHost = req.headers["x-forwarded-host"];
+  if (typeof forwardedHost === "string" && forwardedHost.trim()) {
+    return forwardedHost.split(",")[0].trim();
+  }
+  if (Array.isArray(forwardedHost) && forwardedHost.length) {
+    return String(forwardedHost[0]).trim();
+  }
+  return req.get("host") || "";
+}
+
+function getForwardedProto(req) {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  if (typeof forwardedProto === "string" && forwardedProto.trim()) {
+    return forwardedProto.split(",")[0].trim().toLowerCase();
+  }
+  if (Array.isArray(forwardedProto) && forwardedProto.length) {
+    return String(forwardedProto[0]).trim().toLowerCase();
+  }
+  return (req.protocol || "http").toLowerCase();
+}
+
+function isLocalHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function isIndexablePublicPath(pathname) {
+  if (pathname.startsWith("/admin")) return false;
+  if (pathname.startsWith("/api")) return false;
+  if (pathname === "/login" || pathname === "/logout" || pathname === "/lead-rapido" || pathname === "/perfil") return false;
+  if (pathname.startsWith("/materiais")) return false;
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml") return false;
+  if (pathname === "/" || pathname === "/sobre" || pathname === "/servicos" || pathname === "/blog" || pathname.startsWith("/blog/") || pathname === "/contato") {
+    return true;
+  }
+  return false;
+}
+
+app.use((req, res, next) => {
+  const hostRaw = getForwardedHost(req).toLowerCase();
+  const host = hostRaw.split(":")[0];
+  const proto = getForwardedProto(req);
+  if (isLocalHost(host)) return next();
+  if (host === "mtmsolution.com.br" || host === "www.mtmsolution.com.br") {
+    if (host !== "www.mtmsolution.com.br" || proto !== "https") {
+      return res.redirect(301, `${SEO_CANONICAL_BASE}${req.originalUrl}`);
+    }
+  }
+  return next();
+});
+
 app.use(async (req, res, next) => {
   try {
     res.locals.pendingCount = isAnyAdmin(req) ? await getPendingCount() : 0;
@@ -102,6 +154,9 @@ app.use(async (req, res, next) => {
   res.locals.uploadMaxFiles = UPLOAD_MAX_FILES;
   res.locals.uploadMaxMb = UPLOAD_MAX_MB;
   res.locals.enableClientConfirmationEmail = ENABLE_CLIENT_CONFIRMATION_EMAIL;
+  const reqPath = req.path || "/";
+  res.locals.canonicalUrl = `${SEO_CANONICAL_BASE}${reqPath}`;
+  res.locals.robotsMeta = isIndexablePublicPath(reqPath) ? "index, follow" : "noindex, nofollow";
   next();
 });
 
