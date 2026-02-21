@@ -20,7 +20,7 @@
         <p><strong>Telefone:</strong> <%= briefing.phone || '-' %></p>
         <p><strong>Cidade:</strong> <%= briefing.city || '-' %></p>
         <p><strong>Status:</strong> <%= briefing.status || '-' %></p>
-        <p><strong>Origem:</strong> <%= briefing.source || '-' %></p>
+        <p><strong>Origem:</strong> <%= briefing.source === 'diagnostico' ? 'diagnóstico' : (briefing.source || '-') %></p>
         <p><strong>Recebido em:</strong> <%= briefing.created_at ? new Date(briefing.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></p>
       </div>
 

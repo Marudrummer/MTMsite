@@ -2241,6 +2241,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   const ideaText = String(idea || "").trim();
   const dealTypeText = String(deal_type || "").trim();
   const isDiagnostico = dealTypeText.toLowerCase() === "diagnostico";
+  const briefingSource = isDiagnostico ? "diagnostico" : "nao-sabe";
   if (!nameText || !emailText || !phoneText || !ideaText) return res.redirect("/diagnostico");
   if (!dealTypeText) return res.redirect("/diagnostico");
   if (!pool) return res.status(500).json({ error: "Banco não configurado." });
@@ -2251,7 +2252,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   const idempotencyKey = crypto.randomUUID();
   const payload = {
     idempotency_key: idempotencyKey,
-    source: "nao-sabe",
+    source: briefingSource,
     channel: "site_form",
     phone: phoneText,
     name: nameText,
@@ -2274,7 +2275,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
     [
       profileId,
       idempotencyKey,
-      "nao-sabe",
+      briefingSource,
       "new",
       nameText,
       normalizedEmail,

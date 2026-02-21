@@ -4,7 +4,7 @@
     <div class="admin-header">
       <div>
         <h1>Briefings</h1>
-        <p class="muted">Solicitações recebidas em “Não sabe o que fazer?”.</p>
+        <p class="muted">Solicitações recebidas no fluxo de diagnóstico e briefing.</p>
       </div>
       <div class="admin-actions">
         <a class="btn ghost" href="/admin">Voltar</a>
@@ -29,6 +29,7 @@
           <label>Origem
             <select name="source">
               <option value="all" <%= filters.source === 'all' ? 'selected' : '' %>>Todas</option>
+              <option value="diagnostico" <%= filters.source === 'diagnostico' ? 'selected' : '' %>>Diagnóstico</option>
               <option value="nao-sabe" <%= filters.source === 'nao-sabe' ? 'selected' : '' %>>Não sabe</option>
               <option value="site_form" <%= filters.source === 'site_form' ? 'selected' : '' %>>Site</option>
             </select>
@@ -105,7 +106,7 @@
                 <div><%= item.email || '-' %></div>
                 <div><%= item.phone || '-' %></div>
                 <div class="muted"><%= item.status || '-' %></div>
-                <div class="muted"><%= item.source || '-' %></div>
+                <div class="muted"><%= item.source === 'diagnostico' ? 'diagnóstico' : (item.source || '-') %></div>
               <div class="muted"><%= item.created_at ? new Date(item.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '-' %></div>
                 <div class="admin-actions">
                   <a class="btn ghost" href="/admin/briefings/<%= item.id %>">Ver</a>
