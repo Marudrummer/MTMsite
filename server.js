@@ -2239,8 +2239,10 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   const emailText = String(email || "").trim();
   const phoneText = String(phone || "").trim();
   const ideaText = String(idea || "").trim();
+  const dealTypeText = String(deal_type || "").trim();
+  const isDiagnostico = dealTypeText.toLowerCase() === "diagnostico";
   if (!nameText || !emailText || !phoneText || !ideaText) return res.redirect("/diagnostico");
-  if (!deal_type) return res.redirect("/diagnostico");
+  if (!dealTypeText) return res.redirect("/diagnostico");
   if (!pool) return res.status(500).json({ error: "Banco não configurado." });
   const token = req.cookies && req.cookies.mtm_access_token;
   const authPayload = decodeJwtPayload(token);
@@ -2257,7 +2259,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
     city: String(city || "").trim(),
     answers: {
       idea: ideaText,
-      deal_type: deal_type || "",
+      deal_type: dealTypeText,
       rental_details: String(rental_details || "").trim(),
       event_location: String(event_location || "").trim()
     },
@@ -2279,7 +2281,7 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
       phoneText,
       String(city || "").trim(),
       ideaText,
-      String(deal_type || "").trim(),
+      dealTypeText,
       String(rental_details || "").trim(),
       String(event_location || "").trim(),
       "",
@@ -2299,13 +2301,16 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
   setImmediate(async () => {
     try {
       if (mailer && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        const subject = "Briefing enviado pelo site (Não sabe o que fazer?)";
+        const subject = isDiagnostico
+          ? "Diagnóstico Técnico enviado pelo site"
+          : "Briefing enviado pelo site (Não sabe o que fazer?)";
         const text = [
+          `Origem: ${isDiagnostico ? "diagnostico-tecnico" : "nao-sabe"}`,
           `Nome: ${nameText || ""}`,
           `Email: ${normalizedEmail || ""}`,
           `Telefone: ${phoneText || ""}`,
           `Cidade: ${city || ""}`,
-          `Compra/Locação: ${deal_type || ""}`,
+          `Compra/Locação: ${dealTypeText || ""}`,
           `Locação (dias/datas): ${rental_details || ""}`,
           `Local do evento: ${event_location || ""}`,
           "",
@@ -2327,12 +2332,16 @@ app.post("/qualificador", asyncHandler(async (req, res) => {
     }
 
     if (ENABLE_CLIENT_CONFIRMATION_EMAIL && mailer && isValidEmail(normalizedEmail)) {
-      const subject = "Recebemos seu briefing — MTM Solution";
+      const subject = isDiagnostico
+        ? "Recebemos seu diagnóstico técnico — MTM Solution"
+        : "Recebemos seu briefing — MTM Solution";
       const baseUrl = `${req.protocol}://${req.get("host")}`;
       const text = [
         `Olá, ${nameText || "tudo bem"}!`,
         "",
-        "Recebemos seu briefing e já estamos analisando.",
+        isDiagnostico
+          ? "Recebemos seu diagnóstico técnico e já estamos analisando."
+          : "Recebemos seu briefing e já estamos analisando.",
         "Em breve um especialista da MTM Solution entrará em contato com os próximos passos.",
         "",
         `Enquanto isso, você pode conhecer mais em: ${baseUrl}`,
